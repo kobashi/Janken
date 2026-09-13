@@ -71,6 +71,6 @@ return ((int)player + 1) % 3 == (int)cpu ? 1 : -1;
 
 ## ライセンス
 
-MIT License。授業、改造、再配布に利用できます。
+このプロジェクトのオリジナルのソースコード、ドキュメント、コード生成アイコンは [MIT License](LICENSE) です。著作権表示とライセンス文を残せば、授業、改造、再配布、商用利用に使えます。
 
-日本語表示には Noto Sans CJK JP を使用しています。フォントは SIL Open Font License 1.1 で提供され、ライセンス全文は `ThirdPartyNotices/NotoSansCJK-LICENSE.txt` にあります。
+日本語表示に同梱している Noto Sans CJK JP は第三者著作物であり、MIT Licenseの対象外です。このフォントには SIL Open Font License 1.1 が適用され、ライセンス全文は [`ThirdPartyNotices/NotoSansCJK-LICENSE.txt`](ThirdPartyNotices/NotoSansCJK-LICENSE.txt) にあります。
