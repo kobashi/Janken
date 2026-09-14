@@ -439,12 +439,42 @@ namespace Janken
         private IEnumerator ReplayHistories()
         {
             int cpuVisibleCount = Mathf.Max(0, cpuHandHistory.Count - 1);
-            float totalDuration = Mathf.Max(.84f, cpuVisibleCount * .42f);
-            float startTime = Time.unscaledTime;
-            Coroutine playerReplay = StartCoroutine(ReplayHistory(playerHandHistory, playerIcon, playerHistoryText, "あなた", startTime, totalDuration));
-            Coroutine cpuReplay = StartCoroutine(ReplayHistory(cpuHandHistory, cpuIcon, cpuHistoryText, "CPU", startTime, totalDuration));
-            yield return playerReplay;
-            yield return cpuReplay;
+            int playerVisibleCount = Mathf.Max(0, playerHandHistory.Count - 1);
+            int playerReplayCount = Mathf.Min(playerVisibleCount, cpuVisibleCount);
+            int playerStartIndex = Mathf.Max(0, playerVisibleCount - playerReplayCount);
+            const float stepDuration = .78f;
+
+            for (int step = 0; step < cpuVisibleCount; step++)
+            {
+                callText.text = $"履歴を同時再生 {step + 1}/{cpuVisibleCount}";
+                callText.color = Cream;
+
+                if (step < playerReplayCount)
+                {
+                    JankenIconGraphic.Hand playerPast = playerHandHistory[playerStartIndex + step];
+                    playerIcon.Value = playerPast;
+                    playerIcon.canvasRenderer.SetAlpha(1f);
+                    playerHistoryText.text = $"あなたの直近履歴 {step + 1}/{playerReplayCount}：{HandName(playerPast)}";
+                    sound.PlayHand((int)playerPast, .76f);
+                    StartCoroutine(ScaleBounce(playerIcon.rectTransform, .20f));
+                }
+                else
+                {
+                    playerIcon.canvasRenderer.SetAlpha(0f);
+                    playerHistoryText.text = "あなたの過去履歴：なし";
+                }
+
+                JankenIconGraphic.Hand cpuPast = cpuHandHistory[step];
+                cpuIcon.Value = cpuPast;
+                cpuIcon.canvasRenderer.SetAlpha(1f);
+                cpuHistoryText.text = $"CPUの履歴 {step + 1}/{cpuVisibleCount}：{HandName(cpuPast)}";
+                sound.PlayHand((int)cpuPast, .76f);
+                StartCoroutine(ScaleBounce(cpuIcon.rectTransform, .20f));
+
+                float stepEnd = Time.unscaledTime + stepDuration;
+                while (Time.unscaledTime < stepEnd) yield return null;
+            }
+
             playerIcon.canvasRenderer.SetAlpha(0f);
             cpuIcon.canvasRenderer.SetAlpha(0f);
             callText.text = "履歴再生終了――最終手は判定へ";
@@ -452,31 +482,6 @@ namespace Janken
             playerHistoryText.text = "あなた：履歴再生終了";
             cpuHistoryText.text = "CPU：履歴再生終了";
             yield return new WaitForSecondsRealtime(.35f);
-        }
-
-        private IEnumerator ReplayHistory(List<JankenIconGraphic.Hand> history, JankenIconGraphic icon, Text label, string owner, float startTime, float totalDuration)
-        {
-            int visibleCount = Mathf.Max(0, history.Count - 1);
-            if (visibleCount == 0)
-            {
-                label.text = owner + "の過去履歴：なし";
-                while (Time.unscaledTime < startTime + totalDuration) yield return null;
-                yield break;
-            }
-
-            float delay = totalDuration / visibleCount;
-            for (int i = 0; i < visibleCount; i++)
-            {
-                JankenIconGraphic.Hand hand = history[i];
-                icon.Value = hand;
-                icon.canvasRenderer.SetAlpha(1f);
-                label.text = $"{owner}の履歴 {i + 1}/{visibleCount}：{HandName(hand)}";
-                sound.PlayHand((int)hand, .76f);
-                float bounce = Mathf.Min(.18f, delay * .55f);
-                StartCoroutine(ScaleBounce(icon.rectTransform, bounce));
-                float entryEnd = startTime + (i + 1) * delay;
-                while (Time.unscaledTime < entryEnd) yield return null;
-            }
         }
 
         private IEnumerator DramaticJudgement()
