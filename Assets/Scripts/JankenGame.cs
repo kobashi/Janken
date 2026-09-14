@@ -335,14 +335,16 @@ namespace Janken
         private IEnumerator CpuChoiceCountdown()
         {
             float[] delays = { .72f, .96f, 1.08f };
+            string[] beats = { "ジャン", "ケン", "ポン" };
             for (int i = 0; i < 3; i++)
             {
                 yield return new WaitForSecondsRealtime(delays[i]);
                 if (!choiceActive) yield break;
                 JankenIconGraphic.Hand hand = (JankenIconGraphic.Hand)Random.Range(0, 3);
                 cpuHandHistory.Add(hand);
-                cpuChoiceText.text = $"CPU選択音 {i + 1}/3　（手はまだ秘密）";
+                cpuChoiceText.text = $"CPU「{beats[i]}」 {i + 1}/3　手を選択（秘密）";
                 cpuChoiceText.color = i == 2 ? Yellow : Muted;
+                sound.Play(i == 2 ? "pon" : "count", .48f);
                 sound.PlayHand((int)hand, .82f);
                 yield return ScaleBounce(cpuChoiceText.rectTransform, .16f);
             }
@@ -367,33 +369,28 @@ namespace Janken
 
             choiceActive = false;
             foreach (ChoiceTile tile in choiceTiles) tile.Button.interactable = false;
-            if (!hasLockedHand)
-            {
-                lockedHand = (JankenIconGraphic.Hand)Random.Range(0, 3);
-                hasLockedHand = true;
-                playerHandHistory.Add(lockedHand);
-            }
             while (cpuHandHistory.Count < 3)
             {
                 JankenIconGraphic.Hand fallback = (JankenIconGraphic.Hand)Random.Range(0, 3);
                 cpuHandHistory.Add(fallback);
             }
             choiceTimerText.text = "TIME UP!";
-            choiceFeedbackText.text = "入力を確定！";
-            choiceFeedbackText.color = Yellow;
+            choiceFeedbackText.text = hasLockedHand ? "入力を確定！" : "未選択！　後出しとして敗北";
+            choiceFeedbackText.color = hasLockedHand ? Yellow : Red;
             choiceLockedText.text = "あなたの最終手：？？？　｜　CPUの最終手：？？？";
             sound.Play("timeup");
             yield return ScaleBounce(choiceTimerText.rectTransform, .32f);
             yield return new WaitForSecondsRealtime(.25f);
-            StartCoroutine(PlayRound(lockedHand));
+            JankenIconGraphic.Hand? player = hasLockedHand ? lockedHand : null;
+            StartCoroutine(PlayRound(player));
         }
 
-        private IEnumerator PlayRound(JankenIconGraphic.Hand player)
+        private IEnumerator PlayRound(JankenIconGraphic.Hand? player)
         {
             busy = true;
             yield return Transition(choiceScreen, battleScreen);
             JankenIconGraphic.Hand cpu = cpuHandHistory[cpuHandHistory.Count - 1];
-            playerIcon.Value = player;
+            if (player.HasValue) playerIcon.Value = player.Value;
             cpuIcon.Value = cpu;
             playerIcon.canvasRenderer.SetAlpha(0f);
             cpuIcon.canvasRenderer.SetAlpha(0f);
@@ -414,18 +411,21 @@ namespace Janken
             }
 
             yield return StartCoroutine(ReplayHistories());
-            int outcome = Judge(player, cpu);
+            int outcome = player.HasValue ? Judge(player.Value, cpu) : -1;
             yield return StartCoroutine(DramaticJudgement());
             callText.text = "最終手を公開！";
             callText.color = Yellow;
-            playerIcon.Value = player;
+            if (player.HasValue) playerIcon.Value = player.Value;
             cpuIcon.Value = cpu;
-            playerHistoryText.text = "最終：" + HandName(player);
+            playerHistoryText.text = player.HasValue ? "最終：" + HandName(player.Value) : "最終：未選択（後出し）";
             cpuHistoryText.text = "最終：" + HandName(cpu);
-            sound.PlayHand((int)player, .9f);
-            yield return new WaitForSecondsRealtime(.16f);
+            if (player.HasValue)
+            {
+                sound.PlayHand((int)player.Value, .9f);
+                yield return new WaitForSecondsRealtime(.16f);
+            }
             sound.PlayHand((int)cpu, .9f);
-            playerIcon.CrossFadeAlpha(1f, .12f, true);
+            if (player.HasValue) playerIcon.CrossFadeAlpha(1f, .12f, true);
             cpuIcon.CrossFadeAlpha(1f, .12f, true);
             yield return StartCoroutine(RevealCards());
             ShowResult(outcome, player, cpu);
@@ -438,48 +438,45 @@ namespace Janken
 
         private IEnumerator ReplayHistories()
         {
-            yield return StartCoroutine(ReplayHistory(playerHandHistory, playerIcon, playerHistoryText, "あなた"));
+            int cpuVisibleCount = Mathf.Max(0, cpuHandHistory.Count - 1);
+            float totalDuration = Mathf.Max(.84f, cpuVisibleCount * .42f);
+            float startTime = Time.unscaledTime;
+            Coroutine playerReplay = StartCoroutine(ReplayHistory(playerHandHistory, playerIcon, playerHistoryText, "あなた", startTime, totalDuration));
+            Coroutine cpuReplay = StartCoroutine(ReplayHistory(cpuHandHistory, cpuIcon, cpuHistoryText, "CPU", startTime, totalDuration));
+            yield return playerReplay;
+            yield return cpuReplay;
             playerIcon.canvasRenderer.SetAlpha(0f);
-            yield return StartCoroutine(ReplayHistory(cpuHandHistory, cpuIcon, cpuHistoryText, "CPU"));
             cpuIcon.canvasRenderer.SetAlpha(0f);
-            callText.text = "最終手はまだ秘密――";
+            callText.text = "履歴再生終了――最終手は判定へ";
             callText.color = Cream;
-            playerHistoryText.text = HistorySummary(playerHandHistory, true);
-            cpuHistoryText.text = HistorySummary(cpuHandHistory, true);
+            playerHistoryText.text = "あなた：履歴再生終了";
+            cpuHistoryText.text = "CPU：履歴再生終了";
             yield return new WaitForSecondsRealtime(.35f);
         }
 
-        private IEnumerator ReplayHistory(List<JankenIconGraphic.Hand> history, JankenIconGraphic icon, Text label, string owner)
+        private IEnumerator ReplayHistory(List<JankenIconGraphic.Hand> history, JankenIconGraphic icon, Text label, string owner, float startTime, float totalDuration)
         {
             int visibleCount = Mathf.Max(0, history.Count - 1);
             if (visibleCount == 0)
             {
-                label.text = owner + "の履歴：？？？";
-                yield return new WaitForSecondsRealtime(.25f);
+                label.text = owner + "の過去履歴：なし";
+                while (Time.unscaledTime < startTime + totalDuration) yield return null;
                 yield break;
             }
 
-            float delay = Mathf.Clamp(2.2f / visibleCount, .14f, .42f);
+            float delay = totalDuration / visibleCount;
             for (int i = 0; i < visibleCount; i++)
             {
                 JankenIconGraphic.Hand hand = history[i];
                 icon.Value = hand;
                 icon.canvasRenderer.SetAlpha(1f);
-                label.text = $"{owner}の履歴 {i + 1}/{history.Count}：{HandName(hand)}";
+                label.text = $"{owner}の履歴 {i + 1}/{visibleCount}：{HandName(hand)}";
                 sound.PlayHand((int)hand, .76f);
-                yield return ScaleBounce(icon.rectTransform, Mathf.Min(.22f, delay));
-                yield return new WaitForSecondsRealtime(Mathf.Max(.04f, delay - .22f));
+                float bounce = Mathf.Min(.18f, delay * .55f);
+                StartCoroutine(ScaleBounce(icon.rectTransform, bounce));
+                float entryEnd = startTime + (i + 1) * delay;
+                while (Time.unscaledTime < entryEnd) yield return null;
             }
-        }
-
-        private static string HistorySummary(List<JankenIconGraphic.Hand> history, bool hideLast)
-        {
-            if (history.Count == 0) return "履歴：？？？";
-            List<string> names = new();
-            int visibleCount = hideLast ? history.Count - 1 : history.Count;
-            for (int i = 0; i < visibleCount; i++) names.Add(HandName(history[i]));
-            names.Add("？？？");
-            return "履歴：" + string.Join(" → ", names);
         }
 
         private IEnumerator DramaticJudgement()
@@ -546,9 +543,16 @@ namespace Janken
             cpuCard.anchoredPosition = ca;
         }
 
-        private void ShowResult(int outcome, JankenIconGraphic.Hand player, JankenIconGraphic.Hand cpu)
+        private void ShowResult(int outcome, JankenIconGraphic.Hand? player, JankenIconGraphic.Hand cpu)
         {
-            if (outcome > 0)
+            if (!player.HasValue)
+            {
+                losses++;
+                resultText.text = "後出しで敗北！";
+                resultText.color = Red;
+                sound.Play("lose");
+            }
+            else if (outcome > 0)
             {
                 wins++;
                 resultText.text = "勝ち！";
@@ -569,7 +573,9 @@ namespace Janken
                 resultText.color = Cyan;
                 sound.Play("draw");
             }
-            detailText.text = $"{HandName(player)} vs {HandName(cpu)}";
+            detailText.text = player.HasValue
+                ? $"{HandName(player.Value)} vs {HandName(cpu)}"
+                : $"未選択（後出し） vs {HandName(cpu)}";
             scoreText.text = $"{wins} 勝　{losses} 敗　{draws} 分";
         }
 

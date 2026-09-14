@@ -1,24 +1,44 @@
 mergeInto(LibraryManager.library, {
   $JankenAudio: {
-    context: null,
+    contexts: [],
+    nextContextIndex: 0,
+    contextCount: 4,
 
-    ensureContext: function () {
+    updateDebugState: function () {
+      var states = [];
+      for (var i = 0; i < JankenAudio.contexts.length; i++) states.push(JankenAudio.contexts[i].state);
+      window.__jankenAudioDebug.contextCount = JankenAudio.contexts.length;
+      window.__jankenAudioDebug.contextStates = states;
+      window.__jankenAudioDebug.state = states.length > 0 && states.every(function (state) { return state === 'running'; }) ? 'running' : states.join(',');
+    },
+
+    ensureContexts: function () {
       if (!window.__jankenAudioDebug) {
-        window.__jankenAudioDebug = { state: 'not-created', plays: 0, lastSound: -1 };
+        window.__jankenAudioDebug = { state: 'not-created', plays: 0, lastSound: -1, contextCount: 0, contextStates: [] };
       }
-      if (!JankenAudio.context) {
+      if (JankenAudio.contexts.length === 0) {
         var AudioContextClass = window.AudioContext || window.webkitAudioContext;
         if (AudioContextClass) {
-          JankenAudio.context = new AudioContextClass();
-          window.__jankenAudioDebug.state = JankenAudio.context.state;
-          JankenAudio.context.onstatechange = function () {
-            window.__jankenAudioDebug.state = JankenAudio.context.state;
-          };
+          for (var i = 0; i < JankenAudio.contextCount; i++) {
+            var ctx = new AudioContextClass();
+            ctx.onstatechange = JankenAudio.updateDebugState;
+            JankenAudio.contexts.push(ctx);
+          }
+          JankenAudio.updateDebugState();
         } else {
           window.__jankenAudioDebug.state = 'unsupported';
         }
       }
-      return JankenAudio.context;
+      return JankenAudio.contexts;
+    },
+
+    nextContext: function () {
+      var contexts = JankenAudio.ensureContexts();
+      if (contexts.length === 0) return null;
+      var index = JankenAudio.nextContextIndex % contexts.length;
+      JankenAudio.nextContextIndex = (index + 1) % contexts.length;
+      window.__jankenAudioDebug.contextIndex = index;
+      return contexts[index];
     },
 
     envelope: function (gain, start, attack, duration, peak) {
@@ -55,12 +75,12 @@ mergeInto(LibraryManager.library, {
       source.start(start);
     },
 
-    play: function (soundId, volume) {
-      var ctx = JankenAudio.ensureContext();
+    play: function (soundId, volume, ctx) {
+      ctx = ctx || JankenAudio.nextContext();
       if (!ctx) return;
       window.__jankenAudioDebug.plays += 1;
       window.__jankenAudioDebug.lastSound = soundId;
-      window.__jankenAudioDebug.state = ctx.state;
+      JankenAudio.updateDebugState();
       var master = ctx.createGain();
       master.gain.value = Math.min(1, Math.max(0, volume)) * 0.72;
       master.connect(ctx.destination);
@@ -140,14 +160,15 @@ mergeInto(LibraryManager.library, {
   JankenWebAudio_Init__deps: ['$JankenAudio'],
   JankenWebAudio_Init: function () {
     var unlock = function () {
-      var ctx = JankenAudio.ensureContext();
-      if (ctx && ctx.state === 'suspended') {
-        ctx.resume().then(function () {
-          console.log('[JankenAudio] unlocked: ' + ctx.state);
-        });
-      } else if (ctx) {
-        console.log('[JankenAudio] ready: ' + ctx.state);
+      var contexts = JankenAudio.ensureContexts();
+      var resumes = [];
+      for (var i = 0; i < contexts.length; i++) {
+        if (contexts[i].state === 'suspended') resumes.push(contexts[i].resume());
       }
+      Promise.all(resumes).then(function () {
+        JankenAudio.updateDebugState();
+        console.log('[JankenAudio] pool ready: ' + window.__jankenAudioDebug.contextStates.join(','));
+      });
       document.removeEventListener('pointerdown', unlock, true);
       document.removeEventListener('keydown', unlock, true);
     };
@@ -158,16 +179,16 @@ mergeInto(LibraryManager.library, {
 
   JankenWebAudio_Play__deps: ['$JankenAudio'],
   JankenWebAudio_Play: function (soundId, volume) {
-    var ctx = JankenAudio.ensureContext();
+    var ctx = JankenAudio.nextContext();
     if (!ctx) return;
     if (ctx.state === 'suspended') {
       ctx.resume().then(function () {
-        JankenAudio.play(soundId, volume);
-        console.log('[JankenAudio] played ' + soundId + ': ' + ctx.state);
+        JankenAudio.play(soundId, volume, ctx);
+        console.log('[JankenAudio] played ' + soundId + ': ' + ctx.state + ' (pool)');
       });
     } else {
-      JankenAudio.play(soundId, volume);
-      console.log('[JankenAudio] played ' + soundId + ': ' + ctx.state);
+      JankenAudio.play(soundId, volume, ctx);
+      console.log('[JankenAudio] played ' + soundId + ': ' + ctx.state + ' (pool)');
     }
   }
 });
