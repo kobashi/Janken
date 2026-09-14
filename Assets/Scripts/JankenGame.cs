@@ -12,7 +12,9 @@ namespace Janken
     /// </summary>
     public sealed class JankenGame : MonoBehaviour
     {
-        private const float ChoiceDuration = 4f;
+        private const float ChoiceDuration = 5f;
+        private const float CpuFinalChoiceAt = 4f;
+        private const float LateChoiceDuration = ChoiceDuration - CpuFinalChoiceAt;
         private sealed class ChoiceTile
         {
             public Button Button;
@@ -64,6 +66,7 @@ namespace Janken
         private bool hasLockedHand;
         private JankenIconGraphic.Hand lockedHand;
         private int tapCount;
+        private float choiceStartedAt;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Bootstrap()
@@ -156,10 +159,10 @@ namespace Janken
         private GameObject BuildChoice()
         {
             GameObject panel = Panel("Choice");
-            Text prompt = MakeText("Prompt", panel.transform, "4秒間、連打で手を決めろ！", 43, FontStyle.Bold, Cream);
+            Text prompt = MakeText("Prompt", panel.transform, "5秒間、連打で手を決めろ！", 43, FontStyle.Bold, Cream);
             Anchor(prompt.rectTransform, new Vector2(.5f, .84f), new Vector2(.5f, .84f), Vector2.zero, new Vector2(900, 64));
             prompt.alignment = TextAnchor.MiddleCenter;
-            Text hint = MakeText("Hint", panel.transform, "最後に押した手があなたの最終手。CPUも3回選び直すぞ！", 18, FontStyle.Normal, Muted);
+            Text hint = MakeText("Hint", panel.transform, "CPUの最後の発音後も1秒間入力可能。後出しで決めろ！", 18, FontStyle.Normal, Muted);
             Anchor(hint.rectTransform, new Vector2(.5f, .775f), new Vector2(.5f, .775f), Vector2.zero, new Vector2(900, 36));
             hint.alignment = TextAnchor.MiddleCenter;
 
@@ -170,7 +173,7 @@ namespace Janken
             Stretch(choiceTimerFill.rectTransform);
             choiceTimerFill.color = Cyan;
             choiceTimerFill.raycastTarget = false;
-            choiceTimerText = MakeText("TimerText", panel.transform, "残り 4.0 秒", 19, FontStyle.Bold, Cream);
+            choiceTimerText = MakeText("TimerText", panel.transform, "残り 5.0 秒", 19, FontStyle.Bold, Cream);
             Anchor(choiceTimerText.rectTransform, new Vector2(.5f, .665f), new Vector2(.5f, .665f), Vector2.zero, new Vector2(400, 34));
             choiceTimerText.alignment = TextAnchor.MiddleCenter;
             cpuChoiceText = MakeText("CpuChoice", panel.transform, "CPUも選択中… 0/3", 17, FontStyle.Bold, Muted);
@@ -306,6 +309,7 @@ namespace Janken
             choiceActive = true;
             hasLockedHand = false;
             tapCount = 0;
+            choiceStartedAt = Time.unscaledTime;
             playerHandHistory.Clear();
             cpuHandHistory.Clear();
             choiceFeedbackText.text = "グー・チョキ・パーを何度でも選べ！";
@@ -334,11 +338,12 @@ namespace Janken
 
         private IEnumerator CpuChoiceCountdown()
         {
-            float[] delays = { .72f, .96f, 1.08f };
+            float[] beatTimes = { 1f, 2.5f, CpuFinalChoiceAt };
             string[] beats = { "ジャン", "ケン", "ポン" };
             for (int i = 0; i < 3; i++)
             {
-                yield return new WaitForSecondsRealtime(delays[i]);
+                while (choiceActive && Time.unscaledTime - choiceStartedAt < beatTimes[i])
+                    yield return null;
                 if (!choiceActive) yield break;
                 JankenIconGraphic.Hand hand = (JankenIconGraphic.Hand)Random.Range(0, 3);
                 cpuHandHistory.Add(hand);
@@ -348,21 +353,24 @@ namespace Janken
                 sound.PlayHand((int)hand, .82f);
                 yield return ScaleBounce(cpuChoiceText.rectTransform, .16f);
             }
-            cpuChoiceText.text = "CPUの最終手は判定まで秘密";
+            cpuChoiceText.text = $"後出し受付中！ 発音後 {LateChoiceDuration:0} 秒　CPUの手は秘密";
+            cpuChoiceText.color = Red;
         }
 
         private IEnumerator ChoiceTimer()
         {
-            float start = Time.unscaledTime;
             while (choiceActive)
             {
-                float remaining = Mathf.Max(0f, ChoiceDuration - (Time.unscaledTime - start));
-                choiceTimerText.text = $"残り {remaining:0.0} 秒";
+                float elapsed = Time.unscaledTime - choiceStartedAt;
+                float remaining = Mathf.Max(0f, ChoiceDuration - elapsed);
+                choiceTimerText.text = elapsed >= CpuFinalChoiceAt
+                    ? $"後出し可能　残り {remaining:0.0} 秒"
+                    : $"残り {remaining:0.0} 秒";
                 float ratio = remaining / ChoiceDuration;
                 RectTransform fill = choiceTimerFill.rectTransform;
                 fill.anchorMax = new Vector2(ratio, 1);
                 fill.offsetMax = Vector2.zero;
-                choiceTimerFill.color = ratio < .28f ? Red : ratio < .55f ? Yellow : Cyan;
+                choiceTimerFill.color = elapsed >= CpuFinalChoiceAt ? Red : ratio < .55f ? Yellow : Cyan;
                 if (remaining <= 0f) break;
                 yield return null;
             }
@@ -375,7 +383,7 @@ namespace Janken
                 cpuHandHistory.Add(fallback);
             }
             choiceTimerText.text = "TIME UP!";
-            choiceFeedbackText.text = hasLockedHand ? "入力を確定！" : "未選択！　後出しとして敗北";
+            choiceFeedbackText.text = hasLockedHand ? "入力を確定！" : "未選択のため敗北！";
             choiceFeedbackText.color = hasLockedHand ? Yellow : Red;
             choiceLockedText.text = "あなたの最終手：？？？　｜　CPUの最終手：？？？";
             sound.Play("timeup");
