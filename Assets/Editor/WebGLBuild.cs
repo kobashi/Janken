@@ -17,7 +17,7 @@ namespace Janken.Editor
             Directory.CreateDirectory(Output);
             PlayerSettings.companyName = "Janken Classroom";
             PlayerSettings.productName = "Janken!";
-            PlayerSettings.bundleVersion = "1.1.1";
+            PlayerSettings.bundleVersion = "1.2.0";
             PlayerSettings.defaultScreenWidth = 1280;
             PlayerSettings.defaultScreenHeight = 720;
             PlayerSettings.runInBackground = true;
