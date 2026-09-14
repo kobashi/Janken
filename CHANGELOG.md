@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-09-15
+
 ### Added
 
 - 後出し猶予を「達人 0.5秒」「侍（普通）1.0秒」「若武者 1.5秒」から選べる難易度設定
@@ -111,6 +113,7 @@
 - Unity 6 WebGLビルドとGitHub Pages公開
 - MIT LicenseとNoto Sans CJK JPのOFL 1.1表記
 
+[1.6.0]: https://github.com/kobashi/Janken/releases/tag/v1.6.0
 [1.5.0]: https://github.com/kobashi/Janken/releases/tag/v1.5.0
 [1.4.0]: https://github.com/kobashi/Janken/releases/tag/v1.4.0
 [1.3.0]: https://github.com/kobashi/Janken/releases/tag/v1.3.0
