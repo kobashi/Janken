@@ -7,6 +7,7 @@
 | バージョン | プレイ |
 | --- | --- |
 | 最新版 | [プレイする](https://kobashi.github.io/Janken/) |
+| v1.3.0 | [プレイする](https://kobashi.github.io/Janken/versions/v1.3.0/) |
 | v1.2.0 | [プレイする](https://kobashi.github.io/Janken/versions/v1.2.0/) |
 | v1.1.1 | [プレイする](https://kobashi.github.io/Janken/versions/v1.1.1/) |
 | v1.1.0 | [プレイする](https://kobashi.github.io/Janken/versions/v1.1.0/) |

@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-09-14
+
 ### Changed
 
 - プレイヤーが時間内に未選択の場合、後出し扱いで自動敗北するよう変更
@@ -89,6 +91,7 @@
 - Unity 6 WebGLビルドとGitHub Pages公開
 - MIT LicenseとNoto Sans CJK JPのOFL 1.1表記
 
+[1.4.0]: https://github.com/kobashi/Janken/releases/tag/v1.4.0
 [1.3.0]: https://github.com/kobashi/Janken/releases/tag/v1.3.0
 [1.2.0]: https://github.com/kobashi/Janken/releases/tag/v1.2.0
 [1.1.1]: https://github.com/kobashi/Janken/releases/tag/v1.1.1
