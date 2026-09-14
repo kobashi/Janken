@@ -38,14 +38,19 @@ namespace Janken
         private GameObject battleScreen;
         private readonly List<ChoiceTile> choiceTiles = new();
         private readonly List<Vector2> choiceSlots = new();
+        private readonly List<JankenIconGraphic.Hand> playerHandHistory = new();
+        private readonly List<JankenIconGraphic.Hand> cpuHandHistory = new();
         private Text scoreText;
         private Text choiceTimerText;
         private Text choiceFeedbackText;
         private Text choiceLockedText;
+        private Text cpuChoiceText;
         private Image choiceTimerFill;
         private Text callText;
         private Text resultText;
         private Text detailText;
+        private Text playerHistoryText;
+        private Text cpuHistoryText;
         private GameObject judgeOverlay;
         private Text judgeText;
         private Image judgeBarFill;
@@ -66,6 +71,7 @@ namespace Janken
         private JankenIconGraphic.Hand shownHand;
         private bool lastSignalWasFake;
         private bool cpuUsedRead;
+        private JankenIconGraphic.Hand cpuReadHand;
         private int tapCount;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -176,6 +182,9 @@ namespace Janken
             choiceTimerText = MakeText("TimerText", panel.transform, "残り 4.0 秒", 19, FontStyle.Bold, Cream);
             Anchor(choiceTimerText.rectTransform, new Vector2(.5f, .665f), new Vector2(.5f, .665f), Vector2.zero, new Vector2(400, 34));
             choiceTimerText.alignment = TextAnchor.MiddleCenter;
+            cpuChoiceText = MakeText("CpuChoice", panel.transform, "CPUも選択中… 0/3", 17, FontStyle.Bold, Muted);
+            Anchor(cpuChoiceText.rectTransform, new Vector2(.5f, .62f), new Vector2(.5f, .62f), Vector2.zero, new Vector2(500, 30));
+            cpuChoiceText.alignment = TextAnchor.MiddleCenter;
 
             choiceSlots.AddRange(new[]
             {
@@ -257,6 +266,12 @@ namespace Janken
             detailText = MakeText("Detail", panel.transform, "", 20, FontStyle.Normal, Muted);
             Anchor(detailText.rectTransform, new Vector2(.5f, .12f), new Vector2(.5f, .12f), Vector2.zero, new Vector2(700, 40));
             detailText.alignment = TextAnchor.MiddleCenter;
+            playerHistoryText = MakeText("PlayerHistory", panel.transform, "", 17, FontStyle.Bold, Cyan);
+            Anchor(playerHistoryText.rectTransform, new Vector2(.30f, .285f), new Vector2(.30f, .285f), Vector2.zero, new Vector2(430, 42));
+            playerHistoryText.alignment = TextAnchor.MiddleCenter;
+            cpuHistoryText = MakeText("CpuHistory", panel.transform, "", 17, FontStyle.Bold, Red);
+            Anchor(cpuHistoryText.rectTransform, new Vector2(.70f, .285f), new Vector2(.70f, .285f), Vector2.zero, new Vector2(430, 42));
+            cpuHistoryText.alignment = TextAnchor.MiddleCenter;
             againButton = MakeButton("Again", panel.transform, "もう一回", Cyan, new Vector2(240, 64));
             Anchor(againButton.GetComponent<RectTransform>(), new Vector2(.5f, .055f), new Vector2(.5f, .055f), Vector2.zero, new Vector2(240, 64));
             againButton.onClick.AddListener(BackToChoice);
@@ -323,11 +338,14 @@ namespace Janken
             hasShownHand = false;
             lastSignalWasFake = false;
             tapCount = 0;
+            playerHandHistory.Clear();
+            cpuHandHistory.Clear();
             choiceFeedbackText.text = "本命を決めて、フェイクでCPUを惑わせろ！";
             choiceFeedbackText.color = Yellow;
             choiceLockedText.text = "本命：まだなし　｜　CPUへの合図：なし";
             foreach (ChoiceTile tile in choiceTiles) tile.Button.interactable = true;
             StartCoroutine(ChoiceTimer());
+            StartCoroutine(CpuChoiceCountdown());
         }
 
         private void TapChoice(ChoiceTile tile)
@@ -337,6 +355,7 @@ namespace Janken
             tapCount++;
             // CPUにはどちらも同じ合図として届く。プレイヤーには固定表示で役割を明示する。
             sound.Play("tap");
+            sound.PlayHand((int)tile.Hand, .86f);
             StartCoroutine(ScaleBounce(tile.Rect, .16f));
             shownHand = tile.Hand;
             hasShownHand = true;
@@ -351,6 +370,7 @@ namespace Janken
             {
                 lockedHand = tile.Hand;
                 hasLockedHand = true;
+                playerHandHistory.Add(tile.Hand);
                 choiceFeedbackText.text = HandName(tile.Hand) + "をセット！";
                 choiceFeedbackText.color = Cyan;
             }
@@ -358,6 +378,25 @@ namespace Janken
             string actual = hasLockedHand ? HandName(lockedHand) : "まだなし";
             string signalRole = lastSignalWasFake ? "フェイク" : "本命";
             choiceLockedText.text = $"本命：{actual}　｜　CPUへの合図：{HandName(shownHand)}（{signalRole}）　｜　{tapCount}タップ";
+        }
+
+        private IEnumerator CpuChoiceCountdown()
+        {
+            float[] delays = { .72f, .96f, 1.08f };
+            for (int i = 0; i < 3; i++)
+            {
+                yield return new WaitForSecondsRealtime(delays[i]);
+                if (!choiceActive) yield break;
+                JankenIconGraphic.Hand hand = i < 2
+                    ? (JankenIconGraphic.Hand)Random.Range(0, 3)
+                    : ChooseCpuHand();
+                cpuHandHistory.Add(hand);
+                cpuChoiceText.text = $"CPU選択音 {i + 1}/3　（手はまだ秘密）";
+                cpuChoiceText.color = i == 2 ? Yellow : Muted;
+                sound.PlayHand((int)hand, .82f);
+                yield return ScaleBounce(cpuChoiceText.rectTransform, .16f);
+            }
+            cpuChoiceText.text = "CPUの最終手は判定まで秘密";
         }
 
         private IEnumerator ChoiceTimer()
@@ -382,6 +421,7 @@ namespace Janken
             {
                 lockedHand = (JankenIconGraphic.Hand)Random.Range(0, 3);
                 hasLockedHand = true;
+                playerHandHistory.Add(lockedHand);
             }
             if (!hasShownHand)
             {
@@ -389,12 +429,17 @@ namespace Janken
                 hasShownHand = true;
                 lastSignalWasFake = false;
             }
+            while (cpuHandHistory.Count < 3)
+            {
+                JankenIconGraphic.Hand fallback = cpuHandHistory.Count < 2
+                    ? (JankenIconGraphic.Hand)Random.Range(0, 3)
+                    : ChooseCpuHand();
+                cpuHandHistory.Add(fallback);
+            }
             choiceTimerText.text = "TIME UP!";
-            choiceFeedbackText.text = lastSignalWasFake
-                ? $"本命は{HandName(lockedHand)}、{HandName(shownHand)}のフェイクで勝負！"
-                : HandName(lockedHand) + "で正面勝負！";
+            choiceFeedbackText.text = lastSignalWasFake ? "フェイクを含む入力を確定！" : "入力を確定！";
             choiceFeedbackText.color = Yellow;
-            choiceLockedText.text = $"本命：{HandName(lockedHand)}　｜　CPUが見た手：{HandName(shownHand)}";
+            choiceLockedText.text = "あなたの最終手：？？？　｜　CPUの最終手：？？？";
             sound.Play("timeup");
             yield return ScaleBounce(choiceTimerText.rectTransform, .32f);
             yield return new WaitForSecondsRealtime(.25f);
@@ -405,13 +450,15 @@ namespace Janken
         {
             busy = true;
             yield return Transition(choiceScreen, battleScreen);
-            JankenIconGraphic.Hand cpu = ChooseCpuHand();
+            JankenIconGraphic.Hand cpu = cpuHandHistory[cpuHandHistory.Count - 1];
             playerIcon.Value = player;
             cpuIcon.Value = cpu;
             playerIcon.canvasRenderer.SetAlpha(0f);
             cpuIcon.canvasRenderer.SetAlpha(0f);
             resultText.text = "";
             detailText.text = "";
+            playerHistoryText.text = "あなたの履歴：待機中";
+            cpuHistoryText.text = "CPUの履歴：待機中";
             againButton.gameObject.SetActive(false);
 
             string[] calls = { "最初はグー！", "じゃんけん…", "ぽん！" };
@@ -424,17 +471,73 @@ namespace Janken
                 if (i < 2) yield return new WaitForSeconds(.14f);
             }
 
+            yield return StartCoroutine(ReplayHistories());
+            int outcome = Judge(player, cpu);
+            yield return StartCoroutine(DramaticJudgement());
+            callText.text = "最終手を公開！";
+            callText.color = Yellow;
+            playerIcon.Value = player;
+            cpuIcon.Value = cpu;
+            playerHistoryText.text = "最終：" + HandName(player);
+            cpuHistoryText.text = "最終：" + HandName(cpu);
+            sound.PlayHand((int)player, .9f);
+            yield return new WaitForSecondsRealtime(.16f);
+            sound.PlayHand((int)cpu, .9f);
             playerIcon.CrossFadeAlpha(1f, .12f, true);
             cpuIcon.CrossFadeAlpha(1f, .12f, true);
             yield return StartCoroutine(RevealCards());
-            int outcome = Judge(player, cpu);
-            yield return StartCoroutine(DramaticJudgement());
             ShowResult(outcome, player, cpu);
             yield return ScaleBounce(resultText.rectTransform, .45f);
             if (outcome > 0) StartCoroutine(Confetti());
             againButton.gameObject.SetActive(true);
             yield return ScaleBounce(againButton.GetComponent<RectTransform>(), .28f);
             busy = false;
+        }
+
+        private IEnumerator ReplayHistories()
+        {
+            yield return StartCoroutine(ReplayHistory(playerHandHistory, playerIcon, playerHistoryText, "あなた"));
+            playerIcon.canvasRenderer.SetAlpha(0f);
+            yield return StartCoroutine(ReplayHistory(cpuHandHistory, cpuIcon, cpuHistoryText, "CPU"));
+            cpuIcon.canvasRenderer.SetAlpha(0f);
+            callText.text = "最終手はまだ秘密――";
+            callText.color = Cream;
+            playerHistoryText.text = HistorySummary(playerHandHistory, true);
+            cpuHistoryText.text = HistorySummary(cpuHandHistory, true);
+            yield return new WaitForSecondsRealtime(.35f);
+        }
+
+        private IEnumerator ReplayHistory(List<JankenIconGraphic.Hand> history, JankenIconGraphic icon, Text label, string owner)
+        {
+            int visibleCount = Mathf.Max(0, history.Count - 1);
+            if (visibleCount == 0)
+            {
+                label.text = owner + "の履歴：？？？";
+                yield return new WaitForSecondsRealtime(.25f);
+                yield break;
+            }
+
+            float delay = Mathf.Clamp(2.2f / visibleCount, .14f, .42f);
+            for (int i = 0; i < visibleCount; i++)
+            {
+                JankenIconGraphic.Hand hand = history[i];
+                icon.Value = hand;
+                icon.canvasRenderer.SetAlpha(1f);
+                label.text = $"{owner}の履歴 {i + 1}/{history.Count}：{HandName(hand)}";
+                sound.PlayHand((int)hand, .76f);
+                yield return ScaleBounce(icon.rectTransform, Mathf.Min(.22f, delay));
+                yield return new WaitForSecondsRealtime(Mathf.Max(.04f, delay - .22f));
+            }
+        }
+
+        private static string HistorySummary(List<JankenIconGraphic.Hand> history, bool hideLast)
+        {
+            if (history.Count == 0) return "履歴：？？？";
+            List<string> names = new();
+            int visibleCount = hideLast ? history.Count - 1 : history.Count;
+            for (int i = 0; i < visibleCount; i++) names.Add(HandName(history[i]));
+            names.Add("？？？");
+            return "履歴：" + string.Join(" → ", names);
         }
 
         private IEnumerator DramaticJudgement()
@@ -524,7 +627,7 @@ namespace Janken
                 resultText.color = Cyan;
                 sound.Play("draw");
             }
-            string read = cpuUsedRead ? $"CPUは最後の{HandName(shownHand)}を読んだ" : "CPUは読みを外した";
+            string read = cpuUsedRead ? $"CPUはその時の{HandName(cpuReadHand)}を読んだ" : "CPUは読みを外した";
             detailText.text = $"{HandName(player)} vs {HandName(cpu)}　｜　{read}";
             scoreText.text = $"{wins} 勝　{losses} 敗　{draws} 分";
         }
@@ -533,8 +636,9 @@ namespace Janken
         {
             cpuUsedRead = hasShownHand && Random.value < CpuReadChance;
             if (!cpuUsedRead) return (JankenIconGraphic.Hand)Random.Range(0, 3);
+            cpuReadHand = shownHand;
             // 最後に見た手へ勝つ手を選ぶ。Rock(0)にはPaper(2)という並び。
-            return (JankenIconGraphic.Hand)(((int)shownHand + 2) % 3);
+            return (JankenIconGraphic.Hand)(((int)cpuReadHand + 2) % 3);
         }
 
         private void BackToChoice()
@@ -599,23 +703,28 @@ namespace Janken
         private IEnumerator Confetti()
         {
             List<RectTransform> pieces = new();
-            for (int i = 0; i < 36; i++)
+            List<float> fallSpeeds = new();
+            List<float> driftPhases = new();
+            for (int i = 0; i < 96; i++)
             {
                 Image p = UI<Image>("Confetti", root);
                 p.color = i % 3 == 0 ? Red : i % 3 == 1 ? Yellow : Cyan;
                 p.raycastTarget = false;
-                Anchor(p.rectTransform, new Vector2(.5f, .5f), new Vector2(.5f, .5f), new Vector2(Random.Range(-80, 80), 80), new Vector2(Random.Range(7, 15), Random.Range(18, 32)));
+                Anchor(p.rectTransform, new Vector2(.5f, .5f), new Vector2(.5f, .5f), new Vector2(Random.Range(-625f, 625f), Random.Range(310f, 650f)), new Vector2(Random.Range(7, 15), Random.Range(18, 32)));
                 pieces.Add(p.rectTransform);
+                fallSpeeds.Add(Random.Range(155f, 270f));
+                driftPhases.Add(Random.Range(0f, Mathf.PI * 2f));
             }
             float t = 0f;
-            while (t < 1.4f)
+            while (t < 4.6f)
             {
                 t += Time.unscaledDeltaTime;
                 for (int i = 0; i < pieces.Count; i++)
                 {
                     RectTransform p = pieces[i];
-                    p.anchoredPosition += new Vector2(Mathf.Sin(t * 8f + i) * 2.5f, (290f - t * 440f) * Time.unscaledDeltaTime);
-                    p.Rotate(0, 0, (i % 2 == 0 ? 250 : -250) * Time.unscaledDeltaTime);
+                    float drift = Mathf.Sin(t * 3.4f + driftPhases[i]) * 58f;
+                    p.anchoredPosition += new Vector2(drift, -fallSpeeds[i]) * Time.unscaledDeltaTime;
+                    p.Rotate(0, 0, (i % 2 == 0 ? 220 : -220) * Time.unscaledDeltaTime);
                 }
                 yield return null;
             }

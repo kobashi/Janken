@@ -108,9 +108,31 @@ mergeInto(LibraryManager.library, {
         JankenAudio.tone(ctx, master, now, 0.68, 'sine', 165, 38, 0.82);
         JankenAudio.tone(ctx, master, now, 0.48, 'sawtooth', 1450, 210, 0.22);
         JankenAudio.noise(ctx, master, now, 0.52, 0.36);
-      } else {
+      } else if (soundId === 10) {
         JankenAudio.tone(ctx, master, now, 0.44, 'square', 520, 95, 0.32);
         JankenAudio.tone(ctx, master, now + 0.05, 0.39, 'sine', 260, 82, 0.38);
+      } else if (soundId === 11) {
+        // グー: 有声の濁音から、2モーラ分の長い /u/ へつなぐ。
+        JankenAudio.tone(ctx, master, now, 0.10, 'sawtooth', 118, 154, 0.24);
+        JankenAudio.noise(ctx, master, now, 0.055, 0.08);
+        JankenAudio.tone(ctx, master, now + 0.045, 0.55, 'sawtooth', 154, 148, 0.34);
+        JankenAudio.tone(ctx, master, now + 0.045, 0.54, 'sine', 360, 350, 0.20);
+        JankenAudio.tone(ctx, master, now + 0.045, 0.52, 'sine', 880, 850, 0.10);
+      } else if (soundId === 12) {
+        // チョキ: 摩擦音 + 拗音の滑り + /k/ の破裂と短い /i/。
+        JankenAudio.noise(ctx, master, now, 0.105, 0.30);
+        JankenAudio.tone(ctx, master, now + 0.07, 0.34, 'sawtooth', 178, 174, 0.28);
+        JankenAudio.tone(ctx, master, now + 0.07, 0.30, 'sine', 1250, 520, 0.18);
+        JankenAudio.tone(ctx, master, now + 0.08, 0.29, 'sine', 2200, 980, 0.09);
+        JankenAudio.noise(ctx, master, now + 0.43, 0.055, 0.25);
+        JankenAudio.tone(ctx, master, now + 0.47, 0.24, 'sawtooth', 192, 188, 0.28);
+        JankenAudio.tone(ctx, master, now + 0.47, 0.22, 'sine', 2250, 2180, 0.12);
+      } else if (soundId === 13) {
+        // パー: 半濁音の無声破裂から、2モーラ分の長い /a/ へつなぐ。
+        JankenAudio.noise(ctx, master, now, 0.055, 0.42);
+        JankenAudio.tone(ctx, master, now + 0.045, 0.56, 'sawtooth', 168, 162, 0.34);
+        JankenAudio.tone(ctx, master, now + 0.045, 0.54, 'sine', 760, 735, 0.18);
+        JankenAudio.tone(ctx, master, now + 0.045, 0.52, 'sine', 1220, 1180, 0.10);
       }
     }
   },

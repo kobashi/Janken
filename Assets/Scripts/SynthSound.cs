@@ -40,7 +40,15 @@ namespace Janken
             clips["suspense"] = Make("suspense", 1.8f, SuspenseWave);
             clips["reveal"] = Make("reveal", 0.72f, RevealWave);
             clips["timeup"] = Make("timeup", 0.48f, TimeUpWave);
+            clips["voice_rock"] = Make("voice_rock", 0.62f, RockVoiceWave);
+            clips["voice_scissors"] = Make("voice_scissors", 0.74f, ScissorsVoiceWave);
+            clips["voice_paper"] = Make("voice_paper", 0.64f, PaperVoiceWave);
 #endif
+        }
+
+        public void PlayHand(int hand, float volume = 1f)
+        {
+            Play(hand == 0 ? "voice_rock" : hand == 1 ? "voice_scissors" : "voice_paper", volume);
         }
 
         public void Play(string id, float volume = 1f)
@@ -65,6 +73,9 @@ namespace Janken
             "suspense" => 8,
             "reveal" => 9,
             "timeup" => 10,
+            "voice_rock" => 11,
+            "voice_scissors" => 12,
+            "voice_paper" => 13,
             _ => 1
         };
 
@@ -152,6 +163,45 @@ namespace Janken
         private static float TimeUpWave(float t)
         {
             return (Sine(520f - t * 500f, t) * .55f + Sine(260f - t * 180f, t) * .35f) * Env(t, .004f, 5f);
+        }
+
+        private static float Vowel(float t, float fundamental, float formant1, float formant2)
+        {
+            float vibrato = 1f + Mathf.Sin(t * Mathf.PI * 11f) * .012f;
+            return Sine(fundamental * vibrato, t) * .42f
+                + Sine(formant1, t) * .18f
+                + Sine(formant2, t) * .09f;
+        }
+
+        // 「グー」: 濁音の有声立ち上がり + /u/ を二拍ぶん長く保つ。
+        private static float RockVoiceWave(float t)
+        {
+            float onset = t < .075f ? (Sine(118f, t) * .28f + Noise(t) * .10f) * Env(t, .004f, 22f) : 0f;
+            float local = Mathf.Max(0f, t - .045f);
+            float longU = Vowel(local, 154f, 360f, 880f) * Env(local, .025f, 2.0f);
+            return onset + longU * .76f;
+        }
+
+        // 「チョキ」: /ch/ の摩擦、拗音 /yo/ への滑り、閉鎖後の短い /ki/。
+        private static float ScissorsVoiceWave(float t)
+        {
+            float affricate = t < .105f ? Noise(t) * Env(t, .003f, 17f) * .34f : 0f;
+            float choLocal = Mathf.Max(0f, t - .075f);
+            float glide = Mathf.Clamp01(choLocal / .12f);
+            float cho = t < .43f ? Vowel(choLocal, 178f, Mathf.Lerp(1250f, 520f, glide), Mathf.Lerp(2200f, 980f, glide)) * Env(choLocal, .018f, 3.1f) : 0f;
+            float kBurst = t > .43f && t < .49f ? Noise(t + .31f) * Env(t - .43f, .002f, 34f) * .28f : 0f;
+            float kiLocal = Mathf.Max(0f, t - .47f);
+            float ki = t > .47f ? Vowel(kiLocal, 192f, 310f, 2250f) * Env(kiLocal, .012f, 7f) * .72f : 0f;
+            return affricate + cho * .72f + kBurst + ki;
+        }
+
+        // 「パー」: 半濁音 /p/ の無声破裂 + /a/ を二拍ぶん伸ばす。
+        private static float PaperVoiceWave(float t)
+        {
+            float burst = t < .055f ? Noise(t + .67f) * Env(t, .001f, 38f) * .48f : 0f;
+            float local = Mathf.Max(0f, t - .045f);
+            float longA = Vowel(local, 168f, 760f, 1220f) * Env(local, .018f, 2.05f);
+            return burst + longA * .78f;
         }
     }
 }

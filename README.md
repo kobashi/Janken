@@ -25,6 +25,8 @@
 
 本命とフェイクは表示で明確に区別できますが、CPUにはどちらも同じ合図として伝わります。最後にどのボタンを押すかが駆け引きです。制限時間内に本命を一度も押せなかった場合は、実際の手がランダムに自動選択されます。
 
+グー・チョキ・パーを押すたび、対応する日本語の擬音を波形合成で発音します。CPUも選択時間中に3回発音し、勝負画面では両者の履歴を順に再生します。最終手は判定演出が終わるまで「？」で隠されます。
+
 日本式のルールは次の通りです。
 
 - グーはチョキに勝つ
@@ -69,7 +71,7 @@ python3 -m http.server 8000 --directory Builds/WebGL
 | --- | --- |
 | `Assets/Scripts/JankenGame.cs` | 状態遷移、制限時間、連打とフェイク、コルーチン、乱数、勝敗判定、UI生成 |
 | `Assets/Scripts/JankenIconGraphic.cs` | `Graphic` の継承、頂点と三角形による2D描画 |
-| `Assets/Scripts/SynthSound.cs` | PCM、周波数、エンベロープ、ノイズ、情報を漏らさない共通効果音 |
+| `Assets/Scripts/SynthSound.cs` | PCM、周波数、エンベロープ、ノイズ、濁音・拗音・半濁音を模した手の発音 |
 | `Assets/Plugins/WebGL/JankenWebAudio.jslib` | Web Audio API、自動再生制限、ブラウザー向け音声合成 |
 | `Assets/Editor/WebGLBuild.cs` | Editor拡張、再現可能なWebGLビルド |
 
