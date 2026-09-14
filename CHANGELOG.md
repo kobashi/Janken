@@ -2,7 +2,7 @@
 
 このプロジェクトの主な変更を記録します。
 
-## [Unreleased]
+## [1.3.0] - 2026-09-14
 
 ### Added
 
@@ -77,6 +77,7 @@
 - Unity 6 WebGLビルドとGitHub Pages公開
 - MIT LicenseとNoto Sans CJK JPのOFL 1.1表記
 
+[1.3.0]: https://github.com/kobashi/Janken/releases/tag/v1.3.0
 [1.2.0]: https://github.com/kobashi/Janken/releases/tag/v1.2.0
 [1.1.1]: https://github.com/kobashi/Janken/releases/tag/v1.1.1
 [1.1.0]: https://github.com/kobashi/Janken/releases/tag/v1.1.0
