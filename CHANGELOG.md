@@ -2,6 +2,17 @@
 
 このプロジェクトの主な変更を記録します。
 
+## [1.1.1] - 2026-09-14
+
+### Added
+
+- GitHub Pagesに過去版を残すバージョン別プレイページ
+- v1.0.0、v1.0.1、v1.1.0の固定プレイURL
+
+### Changed
+
+- PagesのルートURLは最新版、`versions/`以下は過去版として公開する構成に変更
+
 ## [1.1.0] - 2026-09-14
 
 ### Added
@@ -39,6 +50,7 @@
 - Unity 6 WebGLビルドとGitHub Pages公開
 - MIT LicenseとNoto Sans CJK JPのOFL 1.1表記
 
+[1.1.1]: https://github.com/kobashi/Janken/releases/tag/v1.1.1
 [1.1.0]: https://github.com/kobashi/Janken/releases/tag/v1.1.0
 [1.0.1]: https://github.com/kobashi/Janken/releases/tag/v1.0.1
 [1.0.0]: https://github.com/kobashi/Janken/releases/tag/v1.0.0

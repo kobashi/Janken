@@ -2,6 +2,17 @@
 
 日本式の「最初はグー、じゃんけんぽん！」を、マウス操作で遊ぶ2Dゲームです。画像・音声素材をダウンロードせず、アイコン描画と効果音合成をすべてC#で行います。
 
+最新版は [GitHub Pages](https://kobashi.github.io/Janken/) です。過去版も固定URLで遊べます。
+
+| バージョン | プレイ |
+| --- | --- |
+| 最新版 | [プレイする](https://kobashi.github.io/Janken/) |
+| v1.1.0 | [プレイする](https://kobashi.github.io/Janken/versions/v1.1.0/) |
+| v1.0.1 | [プレイする](https://kobashi.github.io/Janken/versions/v1.0.1/) |
+| v1.0.0 | [プレイする](https://kobashi.github.io/Janken/versions/v1.0.0/) |
+
+[バージョン一覧](https://kobashi.github.io/Janken/versions/) からも選択できます。
+
 ## 遊び方
 
 1. 「はじめる」をクリックします。
@@ -42,6 +53,8 @@ python3 -m http.server 8000 --directory Builds/WebGL
 ## GitHub Pagesで公開
 
 `.github/workflows/webgl-pages.yml` が `main` ブランチへのpush時にWebGLをビルドしてPagesへ公開します。
+
+公開済みの旧版は `gh-pages` ブランチの `versions/<バージョン>/` に保存します。ルートには最新版を配置し、旧版の固定URLはリリース後も維持します。
 
 1. GitHubで空のリポジトリを作り、このプロジェクトをpushします。
 2. Unity Personal LicenseをGameCIの手順でアクティベートし、Repository secretsに `UNITY_LICENSE`、`UNITY_EMAIL`、`UNITY_PASSWORD` を登録します。
