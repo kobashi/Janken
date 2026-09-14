@@ -2,6 +2,14 @@
 
 このプロジェクトの主な変更を記録します。
 
+## [1.0.1] - 2026-09-14
+
+### Fixed
+
+- WebGL版でブラウザーの自動再生制限により効果音が再生されない問題を修正
+- 最初のクリックでWeb Audio APIを確実に有効化するWebGL専用シンセサイザーを追加
+- WebGLのコードストリッピングによる実行時警告を解消
+
 ## [1.0.0] - 2026-09-14
 
 初回公開版。
@@ -17,4 +25,5 @@
 - Unity 6 WebGLビルドとGitHub Pages公開
 - MIT LicenseとNoto Sans CJK JPのOFL 1.1表記
 
+[1.0.1]: https://github.com/kobashi/Janken/releases/tag/v1.0.1
 [1.0.0]: https://github.com/kobashi/Janken/releases/tag/v1.0.0

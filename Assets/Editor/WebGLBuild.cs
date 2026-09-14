@@ -17,10 +17,12 @@ namespace Janken.Editor
             Directory.CreateDirectory(Output);
             PlayerSettings.companyName = "Janken Classroom";
             PlayerSettings.productName = "Janken!";
-            PlayerSettings.bundleVersion = "1.0.0";
+            PlayerSettings.bundleVersion = "1.0.1";
             PlayerSettings.defaultScreenWidth = 1280;
             PlayerSettings.defaultScreenHeight = 720;
             PlayerSettings.runInBackground = true;
+            // コード生成UIで実行時に追加するコンポーネントをWebGLリンカーから保護する。
+            PlayerSettings.stripEngineCode = false;
             PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
             PlayerSettings.WebGL.dataCaching = true;
             PlayerSettings.WebGL.debugSymbolMode = WebGLDebugSymbolMode.Off;

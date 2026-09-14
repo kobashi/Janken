@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using UnityEngine;
 
 namespace Janken
@@ -11,8 +12,20 @@ namespace Janken
         private readonly Dictionary<string, AudioClip> clips = new();
         private AudioSource source;
 
+#if UNITY_WEBGL && !UNITY_EDITOR
+        [DllImport("__Internal")]
+        private static extern void JankenWebAudio_Init();
+
+        [DllImport("__Internal")]
+        private static extern void JankenWebAudio_Play(int soundId, float volume);
+#endif
+
         public void Initialize()
         {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            // 最初のpointerdownをブラウザー側で捕捉し、AudioContextを確実に解除する。
+            JankenWebAudio_Init();
+#else
             source = gameObject.AddComponent<AudioSource>();
             source.playOnAwake = false;
             source.volume = 0.82f;
@@ -23,12 +36,29 @@ namespace Janken
             clips["win"] = Make("win", 1.25f, WinWave);
             clips["lose"] = Make("lose", 0.9f, LoseWave);
             clips["draw"] = Make("draw", 0.75f, DrawWave);
+#endif
         }
 
         public void Play(string id, float volume = 1f)
         {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            JankenWebAudio_Play(SoundId(id), Mathf.Clamp01(volume));
+#else
             if (source != null && clips.TryGetValue(id, out AudioClip clip)) source.PlayOneShot(clip, volume);
+#endif
         }
+
+        private static int SoundId(string id) => id switch
+        {
+            "start" => 0,
+            "choose" => 1,
+            "count" => 2,
+            "pon" => 3,
+            "win" => 4,
+            "lose" => 5,
+            "draw" => 6,
+            _ => 1
+        };
 
         private static AudioClip Make(string name, float seconds, Func<float, float> wave)
         {
