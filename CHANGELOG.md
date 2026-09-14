@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-09-15
+
 ### Added
 
 - CPUが「ポン」で最後の手を発音した直後から1秒間、後出し入力できる区間を追加
@@ -99,6 +101,7 @@
 - Unity 6 WebGLビルドとGitHub Pages公開
 - MIT LicenseとNoto Sans CJK JPのOFL 1.1表記
 
+[1.5.0]: https://github.com/kobashi/Janken/releases/tag/v1.5.0
 [1.4.0]: https://github.com/kobashi/Janken/releases/tag/v1.4.0
 [1.3.0]: https://github.com/kobashi/Janken/releases/tag/v1.3.0
 [1.2.0]: https://github.com/kobashi/Janken/releases/tag/v1.2.0
