@@ -90,9 +90,27 @@ mergeInto(LibraryManager.library, {
       } else if (soundId === 5) {
         JankenAudio.tone(ctx, master, now, 0.82, 'sawtooth', 340, 82, 0.36);
         JankenAudio.tone(ctx, master, now + 0.06, 0.75, 'sine', 170, 48, 0.36);
-      } else {
+      } else if (soundId === 6) {
         JankenAudio.tone(ctx, master, now, 0.65, 'triangle', 245, 185, 0.42);
         JankenAudio.tone(ctx, master, now + 0.08, 0.55, 'sine', 310, 235, 0.24);
+      } else if (soundId === 7) {
+        // 実選択とフェイクで共通使用する、情報を漏らさないクリック音。
+        JankenAudio.tone(ctx, master, now, 0.14, 'square', 720, 980, 0.26);
+        JankenAudio.tone(ctx, master, now, 0.12, 'sine', 1080, 1320, 0.18);
+        JankenAudio.noise(ctx, master, now, 0.07, 0.08);
+      } else if (soundId === 8) {
+        for (var beat = 0; beat < 6; beat++) {
+          var beatStart = now + beat * 0.27;
+          JankenAudio.tone(ctx, master, beatStart, 0.22, 'sine', 82 + beat * 8, 46, 0.34 + beat * 0.045);
+          JankenAudio.tone(ctx, master, beatStart, 0.24, 'sawtooth', 170 + beat * 55, 220 + beat * 70, 0.055);
+        }
+      } else if (soundId === 9) {
+        JankenAudio.tone(ctx, master, now, 0.68, 'sine', 165, 38, 0.82);
+        JankenAudio.tone(ctx, master, now, 0.48, 'sawtooth', 1450, 210, 0.22);
+        JankenAudio.noise(ctx, master, now, 0.52, 0.36);
+      } else {
+        JankenAudio.tone(ctx, master, now, 0.44, 'square', 520, 95, 0.32);
+        JankenAudio.tone(ctx, master, now + 0.05, 0.39, 'sine', 260, 82, 0.38);
       }
     }
   },

@@ -36,6 +36,10 @@ namespace Janken
             clips["win"] = Make("win", 1.25f, WinWave);
             clips["lose"] = Make("lose", 0.9f, LoseWave);
             clips["draw"] = Make("draw", 0.75f, DrawWave);
+            clips["tap"] = Make("tap", 0.16f, TapWave);
+            clips["suspense"] = Make("suspense", 1.8f, SuspenseWave);
+            clips["reveal"] = Make("reveal", 0.72f, RevealWave);
+            clips["timeup"] = Make("timeup", 0.48f, TimeUpWave);
 #endif
         }
 
@@ -57,6 +61,10 @@ namespace Janken
             "win" => 4,
             "lose" => 5,
             "draw" => 6,
+            "tap" => 7,
+            "suspense" => 8,
+            "reveal" => 9,
+            "timeup" => 10,
             _ => 1
         };
 
@@ -117,6 +125,33 @@ namespace Janken
         {
             float wobble = 220f + Sine(7f, t) * 55f;
             return (Sine(wobble, t) * 0.55f + Sine(wobble * 1.5f, t) * 0.18f) * Env(t, 0.006f, 3.5f);
+        }
+
+        private static float TapWave(float t)
+        {
+            float snap = Noise(t) * Env(t, .001f, 36f) * .22f;
+            return (Sine(720f, t) + Sine(1080f, t) * .34f) * Env(t, .003f, 23f) * .42f + snap;
+        }
+
+        private static float SuspenseWave(float t)
+        {
+            float pulseTime = t % .28f;
+            float pulse = Sine(72f, pulseTime) * Env(pulseTime, .004f, 15f);
+            float rising = Sine(170f + t * 210f, t) * Env(t, .04f, .45f) * .17f;
+            return pulse * (.32f + t * .17f) + rising;
+        }
+
+        private static float RevealWave(float t)
+        {
+            float boom = Sine(145f * Mathf.Exp(-t * 6f) + 38f, t) * Env(t, .001f, 6f);
+            float crash = Noise(t) * Env(t, .001f, 4.8f);
+            float shine = Sine(1250f, t) * Env(t, .004f, 7f);
+            return boom * .78f + crash * .28f + shine * .16f;
+        }
+
+        private static float TimeUpWave(float t)
+        {
+            return (Sine(520f - t * 500f, t) * .55f + Sine(260f - t * 180f, t) * .35f) * Env(t, .004f, 5f);
         }
     }
 }

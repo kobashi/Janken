@@ -2,6 +2,20 @@
 
 このプロジェクトの主な変更を記録します。
 
+## [1.1.0] - 2026-09-14
+
+### Added
+
+- 4秒間に何度でも手を押せる連打選択モード
+- グー・チョキ・パー各2枚のうち片方がフェイクになる選択肢
+- 押すたびにカードとフェイクを再配置するシャッフル要素
+- 結果を表示する前の「判定中」オーバーレイ、進行ゲージ、緊張音、決着音
+- 時間切れ音と、未選択時のランダム自動選択
+
+### Changed
+
+- 実選択とフェイクで同一のクリック音・押下演出を使用し、音から判別できないよう変更
+
 ## [1.0.1] - 2026-09-14
 
 ### Fixed
@@ -25,5 +39,6 @@
 - Unity 6 WebGLビルドとGitHub Pages公開
 - MIT LicenseとNoto Sans CJK JPのOFL 1.1表記
 
+[1.1.0]: https://github.com/kobashi/Janken/releases/tag/v1.1.0
 [1.0.1]: https://github.com/kobashi/Janken/releases/tag/v1.0.1
 [1.0.0]: https://github.com/kobashi/Janken/releases/tag/v1.0.0

@@ -12,6 +12,16 @@ namespace Janken
     /// </summary>
     public sealed class JankenGame : MonoBehaviour
     {
+        private const float ChoiceDuration = 4f;
+
+        private sealed class ChoiceTile
+        {
+            public Button Button;
+            public RectTransform Rect;
+            public JankenIconGraphic.Hand Hand;
+            public bool IsFake;
+        }
+
         private static readonly Color Navy = Hex("10162F");
         private static readonly Color Navy2 = Hex("191F42");
         private static readonly Color Cream = Hex("FFF6DF");
@@ -25,10 +35,19 @@ namespace Janken
         private GameObject openingScreen;
         private GameObject choiceScreen;
         private GameObject battleScreen;
+        private readonly List<ChoiceTile> choiceTiles = new();
+        private readonly List<Vector2> choiceSlots = new();
         private Text scoreText;
+        private Text choiceTimerText;
+        private Text choiceFeedbackText;
+        private Text choiceLockedText;
+        private Image choiceTimerFill;
         private Text callText;
         private Text resultText;
         private Text detailText;
+        private GameObject judgeOverlay;
+        private Text judgeText;
+        private Image judgeBarFill;
         private JankenIconGraphic playerIcon;
         private JankenIconGraphic cpuIcon;
         private RectTransform playerCard;
@@ -39,6 +58,10 @@ namespace Janken
         private int losses;
         private int draws;
         private bool busy;
+        private bool choiceActive;
+        private bool hasLockedHand;
+        private JankenIconGraphic.Hand lockedHand;
+        private int tapCount;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Bootstrap()
@@ -131,23 +154,50 @@ namespace Janken
         private GameObject BuildChoice()
         {
             GameObject panel = Panel("Choice");
-            Text prompt = MakeText("Prompt", panel.transform, "手を選んでね", 48, FontStyle.Bold, Cream);
-            Anchor(prompt.rectTransform, new Vector2(.5f, .76f), new Vector2(.5f, .76f), Vector2.zero, new Vector2(700, 70));
+            Text prompt = MakeText("Prompt", panel.transform, "4秒間、連打で手を決めろ！", 43, FontStyle.Bold, Cream);
+            Anchor(prompt.rectTransform, new Vector2(.5f, .84f), new Vector2(.5f, .84f), Vector2.zero, new Vector2(900, 64));
             prompt.alignment = TextAnchor.MiddleCenter;
-            Text hint = MakeText("Hint", panel.transform, "クリックすると勝負スタート！", 20, FontStyle.Normal, Muted);
-            Anchor(hint.rectTransform, new Vector2(.5f, .68f), new Vector2(.5f, .68f), Vector2.zero, new Vector2(600, 40));
+            Text hint = MakeText("Hint", panel.transform, "同じ手が2枚。片方はフェイク！　押すたび配置が変わるぞ", 18, FontStyle.Normal, Muted);
+            Anchor(hint.rectTransform, new Vector2(.5f, .775f), new Vector2(.5f, .775f), Vector2.zero, new Vector2(900, 36));
             hint.alignment = TextAnchor.MiddleCenter;
 
-            CreateHandButton(panel.transform, JankenIconGraphic.Hand.Rock, "グー", new Vector2(.25f, .39f), Red);
-            CreateHandButton(panel.transform, JankenIconGraphic.Hand.Scissors, "チョキ", new Vector2(.5f, .39f), Yellow);
-            CreateHandButton(panel.transform, JankenIconGraphic.Hand.Paper, "パー", new Vector2(.75f, .39f), Cyan);
+            Image timerBack = UI<Image>("TimerBack", panel.transform);
+            Anchor(timerBack.rectTransform, new Vector2(.5f, .71f), new Vector2(.5f, .71f), Vector2.zero, new Vector2(620, 22));
+            timerBack.color = new Color(1, 1, 1, .10f);
+            choiceTimerFill = UI<Image>("TimerFill", timerBack.transform);
+            Stretch(choiceTimerFill.rectTransform);
+            choiceTimerFill.color = Cyan;
+            choiceTimerFill.raycastTarget = false;
+            choiceTimerText = MakeText("TimerText", panel.transform, "残り 4.0 秒", 19, FontStyle.Bold, Cream);
+            Anchor(choiceTimerText.rectTransform, new Vector2(.5f, .665f), new Vector2(.5f, .665f), Vector2.zero, new Vector2(400, 34));
+            choiceTimerText.alignment = TextAnchor.MiddleCenter;
+
+            choiceSlots.AddRange(new[]
+            {
+                new Vector2(-330, 55), new Vector2(0, 55), new Vector2(330, 55),
+                new Vector2(-330, -105), new Vector2(0, -105), new Vector2(330, -105)
+            });
+            for (int copy = 0; copy < 2; copy++)
+            {
+                CreateChoiceTile(panel.transform, JankenIconGraphic.Hand.Rock, "グー", Red);
+                CreateChoiceTile(panel.transform, JankenIconGraphic.Hand.Scissors, "チョキ", Yellow);
+                CreateChoiceTile(panel.transform, JankenIconGraphic.Hand.Paper, "パー", Cyan);
+            }
+
+            choiceFeedbackText = MakeText("Feedback", panel.transform, "連打スタート！", 25, FontStyle.Bold, Yellow);
+            Anchor(choiceFeedbackText.rectTransform, new Vector2(.5f, .105f), new Vector2(.5f, .105f), Vector2.zero, new Vector2(650, 34));
+            choiceFeedbackText.alignment = TextAnchor.MiddleCenter;
+            choiceLockedText = MakeText("Locked", panel.transform, "選択：まだなし", 18, FontStyle.Normal, Muted);
+            Anchor(choiceLockedText.rectTransform, new Vector2(.5f, .055f), new Vector2(.5f, .055f), Vector2.zero, new Vector2(650, 28));
+            choiceLockedText.alignment = TextAnchor.MiddleCenter;
             return panel;
         }
 
-        private void CreateHandButton(Transform parent, JankenIconGraphic.Hand hand, string label, Vector2 anchor, Color accent)
+        private void CreateChoiceTile(Transform parent, JankenIconGraphic.Hand hand, string label, Color accent)
         {
-            Button button = MakeButton("Choose_" + hand, parent, "", Navy2, new Vector2(250, 260));
-            Anchor(button.GetComponent<RectTransform>(), anchor, anchor, Vector2.zero, new Vector2(250, 260));
+            Button button = MakeButton("Choice_" + hand + "_" + choiceTiles.Count, parent, "", Navy2, new Vector2(175, 145));
+            RectTransform rect = button.GetComponent<RectTransform>();
+            Anchor(rect, new Vector2(.5f, .43f), new Vector2(.5f, .43f), choiceSlots[choiceTiles.Count], new Vector2(175, 145));
             ColorBlock cb = button.colors;
             cb.normalColor = Navy2;
             cb.highlightedColor = new Color(accent.r * .42f, accent.g * .42f, accent.b * .42f, 1);
@@ -157,15 +207,17 @@ namespace Janken
             button.colors = cb;
 
             JankenIconGraphic icon = UI<JankenIconGraphic>("Icon", button.transform);
-            Anchor(icon.rectTransform, new Vector2(.5f, .58f), new Vector2(.5f, .58f), Vector2.zero, new Vector2(150, 150));
+            Anchor(icon.rectTransform, new Vector2(.5f, .62f), new Vector2(.5f, .62f), Vector2.zero, new Vector2(82, 82));
             icon.Value = hand;
             icon.color = accent;
             icon.raycastTarget = false;
-            Text text = MakeText("Label", button.transform, label, 31, FontStyle.Bold, Cream);
-            Anchor(text.rectTransform, new Vector2(.5f, .15f), new Vector2(.5f, .15f), Vector2.zero, new Vector2(210, 55));
+            Text text = MakeText("Label", button.transform, label, 25, FontStyle.Bold, Cream);
+            Anchor(text.rectTransform, new Vector2(.5f, .15f), new Vector2(.5f, .15f), Vector2.zero, new Vector2(155, 38));
             text.alignment = TextAnchor.MiddleCenter;
             text.raycastTarget = false;
-            button.onClick.AddListener(() => Choose(hand));
+            ChoiceTile tile = new() { Button = button, Rect = rect, Hand = hand };
+            choiceTiles.Add(tile);
+            button.onClick.AddListener(() => TapChoice(tile));
         }
 
         private GameObject BuildBattle()
@@ -190,6 +242,25 @@ namespace Janken
             againButton = MakeButton("Again", panel.transform, "もう一回", Cyan, new Vector2(240, 64));
             Anchor(againButton.GetComponent<RectTransform>(), new Vector2(.5f, .055f), new Vector2(.5f, .055f), Vector2.zero, new Vector2(240, 64));
             againButton.onClick.AddListener(BackToChoice);
+
+            Image overlay = UI<Image>("JudgeOverlay", panel.transform);
+            Stretch(overlay.rectTransform);
+            overlay.color = new Color(Navy.r, Navy.g, Navy.b, .97f);
+            judgeOverlay = overlay.gameObject;
+            judgeText = MakeText("JudgeText", overlay.transform, "判定中…", 62, FontStyle.Bold, Cream);
+            Anchor(judgeText.rectTransform, new Vector2(.5f, .58f), new Vector2(.5f, .58f), Vector2.zero, new Vector2(900, 100));
+            judgeText.alignment = TextAnchor.MiddleCenter;
+            Text judgeHint = MakeText("JudgeHint", overlay.transform, "勝負の行方は――", 21, FontStyle.Normal, Muted);
+            Anchor(judgeHint.rectTransform, new Vector2(.5f, .46f), new Vector2(.5f, .46f), Vector2.zero, new Vector2(700, 44));
+            judgeHint.alignment = TextAnchor.MiddleCenter;
+            Image judgeBarBack = UI<Image>("JudgeBarBack", overlay.transform);
+            Anchor(judgeBarBack.rectTransform, new Vector2(.5f, .36f), new Vector2(.5f, .36f), Vector2.zero, new Vector2(640, 28));
+            judgeBarBack.color = new Color(1, 1, 1, .10f);
+            judgeBarFill = UI<Image>("JudgeBarFill", judgeBarBack.transform);
+            Stretch(judgeBarFill.rectTransform);
+            judgeBarFill.color = Red;
+            judgeBarFill.raycastTarget = false;
+            judgeOverlay.SetActive(false);
             return panel;
         }
 
@@ -218,14 +289,112 @@ namespace Janken
         {
             if (busy) return;
             sound.Play("start");
-            StartCoroutine(Transition(openingScreen, choiceScreen));
+            StartCoroutine(EnterChoiceScreen(openingScreen));
         }
 
-        private void Choose(JankenIconGraphic.Hand hand)
+        private IEnumerator EnterChoiceScreen(GameObject from)
         {
-            if (busy) return;
-            sound.Play("choose");
-            StartCoroutine(PlayRound(hand));
+            yield return Transition(from, choiceScreen);
+            BeginChoicePhase();
+        }
+
+        private void BeginChoicePhase()
+        {
+            choiceActive = true;
+            hasLockedHand = false;
+            tapCount = 0;
+            choiceFeedbackText.text = "連打スタート！";
+            choiceFeedbackText.color = Yellow;
+            choiceLockedText.text = "選択：まだなし　／　0 タップ";
+            foreach (ChoiceTile tile in choiceTiles) tile.Button.interactable = true;
+            AssignFakes();
+            ShuffleChoiceTiles();
+            StartCoroutine(ChoiceTimer());
+        }
+
+        private void TapChoice(ChoiceTile tile)
+        {
+            if (!choiceActive) return;
+
+            tapCount++;
+            // 実選択とフェイクで完全に同じ音を鳴らし、聴覚からは判別不能にする。
+            sound.Play("tap");
+            StartCoroutine(ScaleBounce(tile.Rect, .16f));
+
+            if (tile.IsFake)
+            {
+                choiceFeedbackText.text = "フェイク！　次を叩け！";
+                choiceFeedbackText.color = Red;
+            }
+            else
+            {
+                lockedHand = tile.Hand;
+                hasLockedHand = true;
+                choiceFeedbackText.text = HandName(tile.Hand) + "をセット！";
+                choiceFeedbackText.color = Cyan;
+            }
+
+            choiceLockedText.text = (hasLockedHand ? "現在の手：" + HandName(lockedHand) : "選択：まだなし") + $"　／　{tapCount} タップ";
+            AssignFakes();
+            ShuffleChoiceTiles();
+        }
+
+        private void AssignFakes()
+        {
+            foreach (ChoiceTile tile in choiceTiles) tile.IsFake = false;
+            for (int hand = 0; hand < 3; hand++)
+            {
+                List<ChoiceTile> pair = choiceTiles.FindAll(tile => (int)tile.Hand == hand);
+                pair[Random.Range(0, pair.Count)].IsFake = true;
+            }
+        }
+
+        private void ShuffleChoiceTiles()
+        {
+            List<Vector2> shuffled = new(choiceSlots);
+            for (int i = shuffled.Count - 1; i > 0; i--)
+            {
+                int j = Random.Range(0, i + 1);
+                (shuffled[i], shuffled[j]) = (shuffled[j], shuffled[i]);
+            }
+            for (int i = 0; i < choiceTiles.Count; i++)
+            {
+                choiceTiles[i].Rect.anchoredPosition = shuffled[i];
+                choiceTiles[i].Rect.localRotation = Quaternion.Euler(0, 0, Random.Range(-3.5f, 3.5f));
+            }
+        }
+
+        private IEnumerator ChoiceTimer()
+        {
+            float start = Time.unscaledTime;
+            while (choiceActive)
+            {
+                float remaining = Mathf.Max(0f, ChoiceDuration - (Time.unscaledTime - start));
+                choiceTimerText.text = $"残り {remaining:0.0} 秒";
+                float ratio = remaining / ChoiceDuration;
+                RectTransform fill = choiceTimerFill.rectTransform;
+                fill.anchorMax = new Vector2(ratio, 1);
+                fill.offsetMax = Vector2.zero;
+                choiceTimerFill.color = ratio < .28f ? Red : ratio < .55f ? Yellow : Cyan;
+                if (remaining <= 0f) break;
+                yield return null;
+            }
+
+            choiceActive = false;
+            foreach (ChoiceTile tile in choiceTiles) tile.Button.interactable = false;
+            if (!hasLockedHand)
+            {
+                lockedHand = (JankenIconGraphic.Hand)Random.Range(0, 3);
+                hasLockedHand = true;
+                choiceLockedText.text = "自動選択：" + HandName(lockedHand);
+            }
+            choiceTimerText.text = "TIME UP!";
+            choiceFeedbackText.text = HandName(lockedHand) + "で勝負！";
+            choiceFeedbackText.color = Yellow;
+            sound.Play("timeup");
+            yield return ScaleBounce(choiceTimerText.rectTransform, .32f);
+            yield return new WaitForSecondsRealtime(.25f);
+            StartCoroutine(PlayRound(lockedHand));
         }
 
         private IEnumerator PlayRound(JankenIconGraphic.Hand player)
@@ -255,12 +424,58 @@ namespace Janken
             cpuIcon.CrossFadeAlpha(1f, .12f, true);
             yield return StartCoroutine(RevealCards());
             int outcome = Judge(player, cpu);
+            yield return StartCoroutine(DramaticJudgement());
             ShowResult(outcome, player, cpu);
             yield return ScaleBounce(resultText.rectTransform, .45f);
             if (outcome > 0) StartCoroutine(Confetti());
             againButton.gameObject.SetActive(true);
             yield return ScaleBounce(againButton.GetComponent<RectTransform>(), .28f);
             busy = false;
+        }
+
+        private IEnumerator DramaticJudgement()
+        {
+            judgeOverlay.SetActive(true);
+            CanvasGroup group = EnsureGroup(judgeOverlay);
+            group.alpha = 0f;
+            judgeText.text = "判定中…";
+            judgeText.color = Cream;
+            sound.Play("suspense");
+            float elapsed = 0f;
+            const float duration = 1.65f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float ratio = Mathf.Clamp01(elapsed / duration);
+                group.alpha = Mathf.Min(1f, ratio * 5f);
+                RectTransform bar = judgeBarFill.rectTransform;
+                bar.anchorMax = new Vector2(ratio, 1);
+                bar.offsetMax = Vector2.zero;
+                int dots = 1 + Mathf.FloorToInt(elapsed * 4f) % 3;
+                judgeText.text = elapsed < 1.2f ? "判定中" + new string('・', dots) : "勝負の行方は――";
+                float pulse = 1f + Mathf.Sin(elapsed * 15f) * .045f;
+                judgeText.rectTransform.localScale = Vector3.one * pulse;
+                yield return null;
+            }
+
+            sound.Play("reveal");
+            Image overlay = judgeOverlay.GetComponent<Image>();
+            Color original = overlay.color;
+            overlay.color = Cream;
+            judgeText.text = "決着！";
+            judgeText.color = Navy;
+            yield return ScaleBounce(judgeText.rectTransform, .28f);
+            overlay.color = original;
+            judgeText.color = Cream;
+            float fade = 0f;
+            while (fade < 1f)
+            {
+                fade += Time.unscaledDeltaTime * 5f;
+                group.alpha = 1f - fade;
+                yield return null;
+            }
+            group.alpha = 1f;
+            judgeOverlay.SetActive(false);
         }
 
         private IEnumerator RevealCards()
@@ -313,7 +528,7 @@ namespace Janken
         {
             if (busy) return;
             sound.Play("choose", .7f);
-            StartCoroutine(Transition(battleScreen, choiceScreen));
+            StartCoroutine(EnterChoiceScreen(battleScreen));
         }
 
         // Rock(0) beats Scissors(1), Scissors(1) beats Paper(2), Paper(2) beats Rock(0).
