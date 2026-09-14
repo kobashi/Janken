@@ -9,8 +9,10 @@ namespace Janken
     public sealed class SynthSound : MonoBehaviour
     {
         private const int Rate = 44100;
+        private const int Polyphony = 10;
         private readonly Dictionary<string, AudioClip> clips = new();
-        private AudioSource source;
+        private AudioSource[] sources;
+        private int nextSource;
 
 #if UNITY_WEBGL && !UNITY_EDITOR
         [DllImport("__Internal")]
@@ -26,13 +28,17 @@ namespace Janken
             // 最初のpointerdownをブラウザー側で捕捉し、AudioContextを確実に解除する。
             JankenWebAudio_Init();
 #else
-            source = gameObject.AddComponent<AudioSource>();
-            source.playOnAwake = false;
-            source.volume = 0.82f;
+            sources = new AudioSource[Polyphony];
+            for (int i = 0; i < sources.Length; i++)
+            {
+                sources[i] = gameObject.AddComponent<AudioSource>();
+                sources[i].playOnAwake = false;
+                sources[i].volume = 0.82f;
+            }
             clips["start"] = Make("start", 0.7f, StartWave);
             clips["choose"] = Make("choose", 0.18f, ChooseWave);
-            clips["count"] = Make("count", 0.23f, CountWave);
-            clips["pon"] = Make("pon", 0.65f, ImpactWave);
+            clips["count"] = Make("count", 0.09f, CountWave);
+            clips["pon"] = Make("pon", 0.12f, ImpactWave);
             clips["win"] = Make("win", 1.25f, WinWave);
             clips["lose"] = Make("lose", 0.9f, LoseWave);
             clips["draw"] = Make("draw", 0.75f, DrawWave);
@@ -56,7 +62,12 @@ namespace Janken
 #if UNITY_WEBGL && !UNITY_EDITOR
             JankenWebAudio_Play(SoundId(id), Mathf.Clamp01(volume));
 #else
-            if (source != null && clips.TryGetValue(id, out AudioClip clip)) source.PlayOneShot(clip, volume);
+            if (sources != null && clips.TryGetValue(id, out AudioClip clip))
+            {
+                AudioSource voice = sources[nextSource];
+                nextSource = (nextSource + 1) % sources.Length;
+                voice.PlayOneShot(clip, volume);
+            }
 #endif
         }
 
@@ -91,7 +102,18 @@ namespace Janken
 
         private static float Env(float t, float attack, float decay) => Mathf.Min(1f, t / attack) * Mathf.Exp(-t * decay);
         private static float Sine(float hz, float t) => Mathf.Sin(Mathf.PI * 2f * hz * t);
+        private static float Square(float hz, float t) => Sine(hz, t) >= 0f ? 1f : -1f;
+        private static float Saw(float hz, float t) => 2f * (t * hz - Mathf.Floor(.5f + t * hz));
         private static float Noise(float t) => Mathf.PerlinNoise(t * 9701f, 0.37f) * 2f - 1f;
+
+        private static float Adsr(float t, float duration, float attack, float decay, float sustain, float release)
+        {
+            if (t < 0f || t >= duration) return 0f;
+            if (t < attack) return t / attack;
+            if (t < attack + decay) return Mathf.Lerp(1f, sustain, (t - attack) / decay);
+            if (t < duration - release) return sustain;
+            return sustain * Mathf.Clamp01((duration - t) / release);
+        }
 
         private static float StartWave(float t)
         {
@@ -103,17 +125,16 @@ namespace Janken
 
         private static float CountWave(float t)
         {
-            float kick = Sine(105f - t * 180f, t) * Env(t, 0.002f, 16f);
-            float click = Noise(t) * Env(t, 0.001f, 28f);
-            return kick * 0.72f + click * 0.16f;
+            float body = Square(Mathf.Lerp(1760f, 1160f, t / .09f), t) * Env(t, .001f, 48f);
+            float click = Noise(t) * Env(t, .0005f, 70f);
+            return body * .28f + click * .18f;
         }
 
         private static float ImpactWave(float t)
         {
-            float kick = Sine(125f * Mathf.Exp(-t * 7f) + 42f, t) * Env(t, 0.001f, 9f);
-            float crash = Noise(t) * Env(t, 0.002f, 5.5f);
-            float laser = Sine(980f - t * 1100f, t) * Env(t, 0.003f, 7f);
-            return kick * 0.75f + crash * 0.25f + laser * 0.2f;
+            float body = Square(Mathf.Lerp(1320f, 720f, t / .12f), t) * Env(t, .001f, 38f);
+            float click = Noise(t + .19f) * Env(t, .0005f, 58f);
+            return body * .38f + click * .22f;
         }
 
         private static float WinWave(float t)
@@ -179,7 +200,9 @@ namespace Janken
             float onset = t < .075f ? (Sine(118f, t) * .28f + Noise(t) * .10f) * Env(t, .004f, 22f) : 0f;
             float local = Mathf.Max(0f, t - .045f);
             float longU = Vowel(local, 154f, 360f, 880f) * Env(local, .025f, 2.0f);
-            return onset + longU * .76f;
+            float lowC = (Square(130.81f, local) * .72f + Sine(261.62f, local) * .18f)
+                * Adsr(local, .56f, .008f, .07f, .62f, .14f);
+            return onset * .65f + longU * .38f + lowC * .46f;
         }
 
         // 「チョキ」: /ch/ の摩擦、拗音 /yo/ への滑り、閉鎖後の短い /ki/。
@@ -192,7 +215,13 @@ namespace Janken
             float kBurst = t > .43f && t < .49f ? Noise(t + .31f) * Env(t - .43f, .002f, 34f) * .28f : 0f;
             float kiLocal = Mathf.Max(0f, t - .47f);
             float ki = t > .47f ? Vowel(kiLocal, 192f, 310f, 2250f) * Env(kiLocal, .012f, 7f) * .72f : 0f;
-            return affricate + cho * .72f + kBurst + ki;
+            float noteLocal = Mathf.Max(0f, t - .055f);
+            float noteProgress = Mathf.Clamp01(noteLocal / .62f);
+            float gPitch = noteProgress < .5f
+                ? Mathf.Lerp(196f, 164.81f, noteProgress * 2f)
+                : Mathf.Lerp(164.81f, 196f, (noteProgress - .5f) * 2f);
+            float movingG = Saw(gPitch, noteLocal) * Adsr(noteLocal, .62f, .01f, .09f, .58f, .13f);
+            return affricate * .6f + cho * .30f + kBurst * .65f + ki * .28f + movingG * .48f;
         }
 
         // 「パー」: 半濁音 /p/ の無声破裂 + /a/ を二拍ぶん伸ばす。
@@ -201,7 +230,8 @@ namespace Janken
             float burst = t < .055f ? Noise(t + .67f) * Env(t, .001f, 38f) * .48f : 0f;
             float local = Mathf.Max(0f, t - .045f);
             float longA = Vowel(local, 168f, 760f, 1220f) * Env(local, .018f, 2.05f);
-            return burst + longA * .78f;
+            float highC = Sine(261.63f, local) * Adsr(local, .56f, .014f, .08f, .7f, .16f);
+            return burst * .65f + longA * .34f + highC * .62f;
         }
     }
 }

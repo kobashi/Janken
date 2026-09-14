@@ -2,27 +2,34 @@ mergeInto(LibraryManager.library, {
   $JankenAudio: {
     contexts: [],
     nextContextIndex: 0,
-    contextCount: 4,
+    contextCount: 10,
+    voiceCapacity: 10,
 
     updateDebugState: function () {
       var states = [];
       for (var i = 0; i < JankenAudio.contexts.length; i++) states.push(JankenAudio.contexts[i].state);
       window.__jankenAudioDebug.contextCount = JankenAudio.contexts.length;
+      window.__jankenAudioDebug.voiceCapacity = JankenAudio.voiceCapacity;
       window.__jankenAudioDebug.contextStates = states;
       window.__jankenAudioDebug.state = states.length > 0 && states.every(function (state) { return state === 'running'; }) ? 'running' : states.join(',');
     },
 
     ensureContexts: function () {
       if (!window.__jankenAudioDebug) {
-        window.__jankenAudioDebug = { state: 'not-created', plays: 0, lastSound: -1, contextCount: 0, contextStates: [] };
+        window.__jankenAudioDebug = { state: 'not-created', plays: 0, lastSound: -1, contextCount: 0, contextStates: [], voiceCapacity: JankenAudio.voiceCapacity };
       }
       if (JankenAudio.contexts.length === 0) {
         var AudioContextClass = window.AudioContext || window.webkitAudioContext;
         if (AudioContextClass) {
           for (var i = 0; i < JankenAudio.contextCount; i++) {
-            var ctx = new AudioContextClass();
-            ctx.onstatechange = JankenAudio.updateDebugState;
-            JankenAudio.contexts.push(ctx);
+            try {
+              var ctx = new AudioContextClass();
+              ctx.onstatechange = JankenAudio.updateDebugState;
+              JankenAudio.contexts.push(ctx);
+            } catch (error) {
+              console.warn('[JankenAudio] AudioContext pool limited at ' + JankenAudio.contexts.length, error);
+              break;
+            }
           }
           JankenAudio.updateDebugState();
         } else {
@@ -94,12 +101,13 @@ mergeInto(LibraryManager.library, {
         JankenAudio.tone(ctx, master, now, 0.15, 'square', 650, 920, 0.28);
         JankenAudio.tone(ctx, master, now, 0.13, 'sine', 980, 1250, 0.22);
       } else if (soundId === 2) {
-        JankenAudio.tone(ctx, master, now, 0.22, 'sine', 125, 48, 0.72);
-        JankenAudio.noise(ctx, master, now, 0.10, 0.12);
+        // 「ジャン」「ケン」の拍を取る、短く乾いたクリック。
+        JankenAudio.tone(ctx, master, now, 0.085, 'square', 1760, 1160, 0.28);
+        JankenAudio.noise(ctx, master, now, 0.045, 0.14);
       } else if (soundId === 3) {
-        JankenAudio.tone(ctx, master, now, 0.58, 'sine', 150, 42, 0.78);
-        JankenAudio.tone(ctx, master, now, 0.44, 'sawtooth', 1050, 170, 0.25);
-        JankenAudio.noise(ctx, master, now, 0.42, 0.34);
+        // 「ポン」は少し低く強いクリック。同じ短音系統で拍を統一する。
+        JankenAudio.tone(ctx, master, now, 0.115, 'square', 1320, 720, 0.38);
+        JankenAudio.noise(ctx, master, now, 0.06, 0.18);
       } else if (soundId === 4) {
         var notes = [523.25, 659.25, 783.99, 1046.5, 1318.5];
         for (var n = 0; n < notes.length; n++) {
@@ -132,27 +140,23 @@ mergeInto(LibraryManager.library, {
         JankenAudio.tone(ctx, master, now, 0.44, 'square', 520, 95, 0.32);
         JankenAudio.tone(ctx, master, now + 0.05, 0.39, 'sine', 260, 82, 0.38);
       } else if (soundId === 11) {
-        // グー: 有声の濁音から、2モーラ分の長い /u/ へつなぐ。
-        JankenAudio.tone(ctx, master, now, 0.10, 'sawtooth', 118, 154, 0.24);
-        JankenAudio.noise(ctx, master, now, 0.055, 0.08);
-        JankenAudio.tone(ctx, master, now + 0.045, 0.55, 'sawtooth', 154, 148, 0.34);
-        JankenAudio.tone(ctx, master, now + 0.045, 0.54, 'sine', 360, 350, 0.20);
-        JankenAudio.tone(ctx, master, now + 0.045, 0.52, 'sine', 880, 850, 0.10);
+        // グー: 低いド(C3)を矩形波ブザーで鳴らす。
+        JankenAudio.tone(ctx, master, now, 0.56, 'square', 130.81, 130.81, 0.42);
+        JankenAudio.tone(ctx, master, now, 0.50, 'sine', 261.62, 258, 0.10);
+        JankenAudio.tone(ctx, master, now + 0.045, 0.48, 'sine', 360, 350, 0.09);
+        JankenAudio.noise(ctx, master, now, 0.05, 0.06);
       } else if (soundId === 12) {
-        // チョキ: 摩擦音 + 拗音の滑り + /k/ の破裂と短い /i/。
-        JankenAudio.noise(ctx, master, now, 0.105, 0.30);
-        JankenAudio.tone(ctx, master, now + 0.07, 0.34, 'sawtooth', 178, 174, 0.28);
-        JankenAudio.tone(ctx, master, now + 0.07, 0.30, 'sine', 1250, 520, 0.18);
-        JankenAudio.tone(ctx, master, now + 0.08, 0.29, 'sine', 2200, 980, 0.09);
-        JankenAudio.noise(ctx, master, now + 0.43, 0.055, 0.25);
-        JankenAudio.tone(ctx, master, now + 0.47, 0.24, 'sawtooth', 192, 188, 0.28);
-        JankenAudio.tone(ctx, master, now + 0.47, 0.22, 'sine', 2250, 2180, 0.12);
+        // チョキ: ソ(G3)のノコギリ波を一度下げ、後半で元の高さへ戻す。
+        JankenAudio.tone(ctx, master, now, 0.31, 'sawtooth', 196.00, 164.81, 0.40);
+        JankenAudio.tone(ctx, master, now + 0.31, 0.31, 'sawtooth', 164.81, 196.00, 0.36);
+        JankenAudio.noise(ctx, master, now, 0.08, 0.16);
+        JankenAudio.noise(ctx, master, now + 0.43, 0.045, 0.12);
+        JankenAudio.tone(ctx, master, now + 0.07, 0.28, 'sine', 1250, 520, 0.08);
       } else if (soundId === 13) {
-        // パー: 半濁音の無声破裂から、2モーラ分の長い /a/ へつなぐ。
-        JankenAudio.noise(ctx, master, now, 0.055, 0.42);
-        JankenAudio.tone(ctx, master, now + 0.045, 0.56, 'sawtooth', 168, 162, 0.34);
-        JankenAudio.tone(ctx, master, now + 0.045, 0.54, 'sine', 760, 735, 0.18);
-        JankenAudio.tone(ctx, master, now + 0.045, 0.52, 'sine', 1220, 1180, 0.10);
+        // パー: 高いド(C4)を丸いサイン波で鳴らす。
+        JankenAudio.noise(ctx, master, now, 0.05, 0.18);
+        JankenAudio.tone(ctx, master, now + 0.02, 0.56, 'sine', 261.63, 261.63, 0.56);
+        JankenAudio.tone(ctx, master, now + 0.045, 0.48, 'sine', 760, 735, 0.07);
       }
     }
   },

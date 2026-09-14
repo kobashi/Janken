@@ -12,9 +12,9 @@ namespace Janken
     /// </summary>
     public sealed class JankenGame : MonoBehaviour
     {
-        private const float ChoiceDuration = 5f;
         private const float CpuFinalChoiceAt = 4f;
-        private const float LateChoiceDuration = ChoiceDuration - CpuFinalChoiceAt;
+        private static readonly float[] LateChoiceDurations = { .5f, 1f, 1.5f };
+        private static readonly string[] DifficultyNames = { "達人", "侍（普通）", "若武者" };
         private sealed class ChoiceTile
         {
             public Button Button;
@@ -36,10 +36,14 @@ namespace Janken
         private GameObject choiceScreen;
         private GameObject battleScreen;
         private readonly List<ChoiceTile> choiceTiles = new();
+        private readonly List<Button> difficultyButtons = new();
         private readonly List<JankenIconGraphic.Hand> playerHandHistory = new();
         private readonly List<JankenIconGraphic.Hand> cpuHandHistory = new();
         private Text scoreText;
         private Text choiceTimerText;
+        private Text choicePromptText;
+        private Text choiceHintText;
+        private Text difficultyStatusText;
         private Text choiceFeedbackText;
         private Text choiceLockedText;
         private Text cpuChoiceText;
@@ -67,6 +71,9 @@ namespace Janken
         private JankenIconGraphic.Hand lockedHand;
         private int tapCount;
         private float choiceStartedAt;
+        private int difficultyIndex = 1;
+        private float LateChoiceDuration => LateChoiceDurations[difficultyIndex];
+        private float ChoiceDuration => CpuFinalChoiceAt + LateChoiceDuration;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Bootstrap()
@@ -143,28 +150,66 @@ namespace Janken
             eyebrow.alignment = TextAnchor.MiddleCenter;
 
             Text title = MakeText("Title", panel.transform, "じゃんけん！", 82, FontStyle.Bold, Cream);
-            Anchor(title.rectTransform, new Vector2(.5f, .57f), new Vector2(.5f, .57f), Vector2.zero, new Vector2(900, 120));
+            Anchor(title.rectTransform, new Vector2(.5f, .62f), new Vector2(.5f, .62f), Vector2.zero, new Vector2(900, 120));
             title.alignment = TextAnchor.MiddleCenter;
 
             Text sub = MakeText("Subtitle", panel.transform, "最初はグー。タイミングよく手を選ぼう。", 24, FontStyle.Normal, Muted);
-            Anchor(sub.rectTransform, new Vector2(.5f, .43f), new Vector2(.5f, .43f), Vector2.zero, new Vector2(800, 60));
+            Anchor(sub.rectTransform, new Vector2(.5f, .49f), new Vector2(.5f, .49f), Vector2.zero, new Vector2(800, 60));
             sub.alignment = TextAnchor.MiddleCenter;
 
+            difficultyStatusText = MakeText("DifficultyStatus", panel.transform, "難易度：侍（普通）　後出し 1.0 秒", 20, FontStyle.Bold, Yellow);
+            Anchor(difficultyStatusText.rectTransform, new Vector2(.5f, .385f), new Vector2(.5f, .385f), Vector2.zero, new Vector2(820, 40));
+            difficultyStatusText.alignment = TextAnchor.MiddleCenter;
+
+            for (int i = 0; i < DifficultyNames.Length; i++)
+            {
+                int selected = i;
+                Button difficulty = MakeButton("Difficulty_" + i, panel.transform,
+                    $"{DifficultyNames[i]}  {LateChoiceDurations[i]:0.0}秒", Navy2, new Vector2(230, 54));
+                Anchor(difficulty.GetComponent<RectTransform>(), new Vector2(.5f, .30f), new Vector2(.5f, .30f), new Vector2((i - 1) * 250, 0), new Vector2(230, 54));
+                difficulty.onClick.AddListener(() => SetDifficulty(selected));
+                difficultyButtons.Add(difficulty);
+            }
+
             Button start = MakeButton("StartButton", panel.transform, "はじめる", Red, new Vector2(300, 78));
-            Anchor(start.GetComponent<RectTransform>(), new Vector2(.5f, .27f), new Vector2(.5f, .27f), Vector2.zero, new Vector2(300, 78));
+            Anchor(start.GetComponent<RectTransform>(), new Vector2(.5f, .16f), new Vector2(.5f, .16f), Vector2.zero, new Vector2(300, 78));
             start.onClick.AddListener(BeginGame);
+            SetDifficulty(1);
             return panel;
+        }
+
+        private void SetDifficulty(int index)
+        {
+            bool changed = index != difficultyIndex;
+            difficultyIndex = Mathf.Clamp(index, 0, LateChoiceDurations.Length - 1);
+            if (difficultyStatusText != null)
+                difficultyStatusText.text = $"難易度：{DifficultyNames[difficultyIndex]}　後出し {LateChoiceDuration:0.0} 秒";
+            for (int i = 0; i < difficultyButtons.Count; i++)
+            {
+                Color baseColor = i == difficultyIndex ? Yellow : Navy2;
+                Button button = difficultyButtons[i];
+                button.targetGraphic.color = baseColor;
+                ColorBlock colors = button.colors;
+                colors.normalColor = baseColor;
+                colors.highlightedColor = Color.Lerp(baseColor, Color.white, .18f);
+                colors.pressedColor = Color.Lerp(baseColor, Color.black, .18f);
+                colors.selectedColor = baseColor;
+                button.colors = colors;
+                Text label = button.transform.Find("Text").GetComponent<Text>();
+                label.color = i == difficultyIndex ? Navy : Cream;
+            }
+            if (changed) sound?.Play("choose", .55f);
         }
 
         private GameObject BuildChoice()
         {
             GameObject panel = Panel("Choice");
-            Text prompt = MakeText("Prompt", panel.transform, "5秒間、連打で手を決めろ！", 43, FontStyle.Bold, Cream);
-            Anchor(prompt.rectTransform, new Vector2(.5f, .84f), new Vector2(.5f, .84f), Vector2.zero, new Vector2(900, 64));
-            prompt.alignment = TextAnchor.MiddleCenter;
-            Text hint = MakeText("Hint", panel.transform, "CPUの最後の発音後も1秒間入力可能。後出しで決めろ！", 18, FontStyle.Normal, Muted);
-            Anchor(hint.rectTransform, new Vector2(.5f, .775f), new Vector2(.5f, .775f), Vector2.zero, new Vector2(900, 36));
-            hint.alignment = TextAnchor.MiddleCenter;
+            choicePromptText = MakeText("Prompt", panel.transform, "5.0秒間、連打で手を決めろ！", 43, FontStyle.Bold, Cream);
+            Anchor(choicePromptText.rectTransform, new Vector2(.5f, .84f), new Vector2(.5f, .84f), Vector2.zero, new Vector2(900, 64));
+            choicePromptText.alignment = TextAnchor.MiddleCenter;
+            choiceHintText = MakeText("Hint", panel.transform, "CPUの最後の発音後も1.0秒間入力可能。後出しで決めろ！", 18, FontStyle.Normal, Muted);
+            Anchor(choiceHintText.rectTransform, new Vector2(.5f, .775f), new Vector2(.5f, .775f), Vector2.zero, new Vector2(900, 36));
+            choiceHintText.alignment = TextAnchor.MiddleCenter;
 
             Image timerBack = UI<Image>("TimerBack", panel.transform);
             Anchor(timerBack.rectTransform, new Vector2(.5f, .71f), new Vector2(.5f, .71f), Vector2.zero, new Vector2(620, 22));
@@ -312,6 +357,8 @@ namespace Janken
             choiceStartedAt = Time.unscaledTime;
             playerHandHistory.Clear();
             cpuHandHistory.Clear();
+            choicePromptText.text = $"{ChoiceDuration:0.0}秒間、連打で手を決めろ！";
+            choiceHintText.text = $"{DifficultyNames[difficultyIndex]}：CPUの最後の発音後も {LateChoiceDuration:0.0} 秒間入力可能";
             choiceFeedbackText.text = "グー・チョキ・パーを何度でも選べ！";
             choiceFeedbackText.color = Yellow;
             choiceLockedText.text = "現在の手：まだなし　｜　0タップ";
@@ -353,7 +400,7 @@ namespace Janken
                 sound.PlayHand((int)hand, .82f);
                 yield return ScaleBounce(cpuChoiceText.rectTransform, .16f);
             }
-            cpuChoiceText.text = $"後出し受付中！ 発音後 {LateChoiceDuration:0} 秒　CPUの手は秘密";
+            cpuChoiceText.text = $"後出し受付中！ 発音後 {LateChoiceDuration:0.0} 秒　CPUの手は秘密";
             cpuChoiceText.color = Red;
         }
 
