@@ -13,6 +13,7 @@ namespace Janken
     public sealed class JankenGame : MonoBehaviour
     {
         private const float ChoiceDuration = 4f;
+        private const float CpuReadChance = .75f;
 
         private sealed class ChoiceTile
         {
@@ -61,6 +62,10 @@ namespace Janken
         private bool choiceActive;
         private bool hasLockedHand;
         private JankenIconGraphic.Hand lockedHand;
+        private bool hasShownHand;
+        private JankenIconGraphic.Hand shownHand;
+        private bool lastSignalWasFake;
+        private bool cpuUsedRead;
         private int tapCount;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -157,7 +162,7 @@ namespace Janken
             Text prompt = MakeText("Prompt", panel.transform, "4秒間、連打で手を決めろ！", 43, FontStyle.Bold, Cream);
             Anchor(prompt.rectTransform, new Vector2(.5f, .84f), new Vector2(.5f, .84f), Vector2.zero, new Vector2(900, 64));
             prompt.alignment = TextAnchor.MiddleCenter;
-            Text hint = MakeText("Hint", panel.transform, "同じ手が2枚。片方はフェイク！　押すたび配置が変わるぞ", 18, FontStyle.Normal, Muted);
+            Text hint = MakeText("Hint", panel.transform, "CPUは最後に押した手を3/4で読む。本命のあとにフェイクで惑わせろ！", 18, FontStyle.Normal, Muted);
             Anchor(hint.rectTransform, new Vector2(.5f, .775f), new Vector2(.5f, .775f), Vector2.zero, new Vector2(900, 36));
             hint.alignment = TextAnchor.MiddleCenter;
 
@@ -177,11 +182,19 @@ namespace Janken
                 new Vector2(-330, 55), new Vector2(0, 55), new Vector2(330, 55),
                 new Vector2(-330, -105), new Vector2(0, -105), new Vector2(330, -105)
             });
-            for (int copy = 0; copy < 2; copy++)
+            Text realRow = MakeText("RealRow", panel.transform, "本命", 19, FontStyle.Bold, Cyan);
+            Anchor(realRow.rectTransform, new Vector2(.5f, .43f), new Vector2(.5f, .43f), new Vector2(-535, 55), new Vector2(100, 38));
+            realRow.alignment = TextAnchor.MiddleCenter;
+            Text fakeRow = MakeText("FakeRow", panel.transform, "フェイク", 17, FontStyle.Bold, Red);
+            Anchor(fakeRow.rectTransform, new Vector2(.5f, .43f), new Vector2(.5f, .43f), new Vector2(-535, -105), new Vector2(110, 38));
+            fakeRow.alignment = TextAnchor.MiddleCenter;
+
+            for (int row = 0; row < 2; row++)
             {
-                CreateChoiceTile(panel.transform, JankenIconGraphic.Hand.Rock, "グー", Red);
-                CreateChoiceTile(panel.transform, JankenIconGraphic.Hand.Scissors, "チョキ", Yellow);
-                CreateChoiceTile(panel.transform, JankenIconGraphic.Hand.Paper, "パー", Cyan);
+                bool isFake = row == 1;
+                CreateChoiceTile(panel.transform, JankenIconGraphic.Hand.Rock, "グー", Red, isFake);
+                CreateChoiceTile(panel.transform, JankenIconGraphic.Hand.Scissors, "チョキ", Yellow, isFake);
+                CreateChoiceTile(panel.transform, JankenIconGraphic.Hand.Paper, "パー", Cyan, isFake);
             }
 
             choiceFeedbackText = MakeText("Feedback", panel.transform, "連打スタート！", 25, FontStyle.Bold, Yellow);
@@ -193,29 +206,34 @@ namespace Janken
             return panel;
         }
 
-        private void CreateChoiceTile(Transform parent, JankenIconGraphic.Hand hand, string label, Color accent)
+        private void CreateChoiceTile(Transform parent, JankenIconGraphic.Hand hand, string label, Color accent, bool isFake)
         {
-            Button button = MakeButton("Choice_" + hand + "_" + choiceTiles.Count, parent, "", Navy2, new Vector2(175, 145));
+            Color baseColor = isFake ? Hex("2B2448") : Navy2;
+            Button button = MakeButton("Choice_" + (isFake ? "Fake_" : "Real_") + hand, parent, "", baseColor, new Vector2(175, 145));
             RectTransform rect = button.GetComponent<RectTransform>();
             Anchor(rect, new Vector2(.5f, .43f), new Vector2(.5f, .43f), choiceSlots[choiceTiles.Count], new Vector2(175, 145));
             ColorBlock cb = button.colors;
-            cb.normalColor = Navy2;
+            cb.normalColor = baseColor;
             cb.highlightedColor = new Color(accent.r * .42f, accent.g * .42f, accent.b * .42f, 1);
             cb.pressedColor = accent;
-            cb.selectedColor = Navy2;
+            cb.selectedColor = baseColor;
             cb.fadeDuration = .12f;
             button.colors = cb;
 
+            Text role = MakeText("Role", button.transform, isFake ? "FAKE" : "本命", 15, FontStyle.Bold, isFake ? Red : Cyan);
+            Anchor(role.rectTransform, new Vector2(.5f, .88f), new Vector2(.5f, .88f), Vector2.zero, new Vector2(145, 26));
+            role.alignment = TextAnchor.MiddleCenter;
+            role.raycastTarget = false;
             JankenIconGraphic icon = UI<JankenIconGraphic>("Icon", button.transform);
-            Anchor(icon.rectTransform, new Vector2(.5f, .62f), new Vector2(.5f, .62f), Vector2.zero, new Vector2(82, 82));
+            Anchor(icon.rectTransform, new Vector2(.5f, .55f), new Vector2(.5f, .55f), Vector2.zero, new Vector2(76, 76));
             icon.Value = hand;
-            icon.color = accent;
+            icon.color = isFake ? Color.Lerp(accent, Muted, .35f) : accent;
             icon.raycastTarget = false;
             Text text = MakeText("Label", button.transform, label, 25, FontStyle.Bold, Cream);
-            Anchor(text.rectTransform, new Vector2(.5f, .15f), new Vector2(.5f, .15f), Vector2.zero, new Vector2(155, 38));
+            Anchor(text.rectTransform, new Vector2(.5f, .13f), new Vector2(.5f, .13f), Vector2.zero, new Vector2(155, 36));
             text.alignment = TextAnchor.MiddleCenter;
             text.raycastTarget = false;
-            ChoiceTile tile = new() { Button = button, Rect = rect, Hand = hand };
+            ChoiceTile tile = new() { Button = button, Rect = rect, Hand = hand, IsFake = isFake };
             choiceTiles.Add(tile);
             button.onClick.AddListener(() => TapChoice(tile));
         }
@@ -302,13 +320,13 @@ namespace Janken
         {
             choiceActive = true;
             hasLockedHand = false;
+            hasShownHand = false;
+            lastSignalWasFake = false;
             tapCount = 0;
-            choiceFeedbackText.text = "連打スタート！";
+            choiceFeedbackText.text = "本命を決めて、フェイクでCPUを惑わせろ！";
             choiceFeedbackText.color = Yellow;
-            choiceLockedText.text = "選択：まだなし　／　0 タップ";
+            choiceLockedText.text = "本命：まだなし　｜　CPUへの合図：なし";
             foreach (ChoiceTile tile in choiceTiles) tile.Button.interactable = true;
-            AssignFakes();
-            ShuffleChoiceTiles();
             StartCoroutine(ChoiceTimer());
         }
 
@@ -317,13 +335,16 @@ namespace Janken
             if (!choiceActive) return;
 
             tapCount++;
-            // 実選択とフェイクで完全に同じ音を鳴らし、聴覚からは判別不能にする。
+            // CPUにはどちらも同じ合図として届く。プレイヤーには固定表示で役割を明示する。
             sound.Play("tap");
             StartCoroutine(ScaleBounce(tile.Rect, .16f));
+            shownHand = tile.Hand;
+            hasShownHand = true;
+            lastSignalWasFake = tile.IsFake;
 
             if (tile.IsFake)
             {
-                choiceFeedbackText.text = "フェイク！　次を叩け！";
+                choiceFeedbackText.text = HandName(tile.Hand) + "を見せた！　この合図でCPUを誘導";
                 choiceFeedbackText.color = Red;
             }
             else
@@ -334,34 +355,9 @@ namespace Janken
                 choiceFeedbackText.color = Cyan;
             }
 
-            choiceLockedText.text = (hasLockedHand ? "現在の手：" + HandName(lockedHand) : "選択：まだなし") + $"　／　{tapCount} タップ";
-            AssignFakes();
-            ShuffleChoiceTiles();
-        }
-
-        private void AssignFakes()
-        {
-            foreach (ChoiceTile tile in choiceTiles) tile.IsFake = false;
-            for (int hand = 0; hand < 3; hand++)
-            {
-                List<ChoiceTile> pair = choiceTiles.FindAll(tile => (int)tile.Hand == hand);
-                pair[Random.Range(0, pair.Count)].IsFake = true;
-            }
-        }
-
-        private void ShuffleChoiceTiles()
-        {
-            List<Vector2> shuffled = new(choiceSlots);
-            for (int i = shuffled.Count - 1; i > 0; i--)
-            {
-                int j = Random.Range(0, i + 1);
-                (shuffled[i], shuffled[j]) = (shuffled[j], shuffled[i]);
-            }
-            for (int i = 0; i < choiceTiles.Count; i++)
-            {
-                choiceTiles[i].Rect.anchoredPosition = shuffled[i];
-                choiceTiles[i].Rect.localRotation = Quaternion.Euler(0, 0, Random.Range(-3.5f, 3.5f));
-            }
+            string actual = hasLockedHand ? HandName(lockedHand) : "まだなし";
+            string signalRole = lastSignalWasFake ? "フェイク" : "本命";
+            choiceLockedText.text = $"本命：{actual}　｜　CPUへの合図：{HandName(shownHand)}（{signalRole}）　｜　{tapCount}タップ";
         }
 
         private IEnumerator ChoiceTimer()
@@ -386,11 +382,19 @@ namespace Janken
             {
                 lockedHand = (JankenIconGraphic.Hand)Random.Range(0, 3);
                 hasLockedHand = true;
-                choiceLockedText.text = "自動選択：" + HandName(lockedHand);
+            }
+            if (!hasShownHand)
+            {
+                shownHand = lockedHand;
+                hasShownHand = true;
+                lastSignalWasFake = false;
             }
             choiceTimerText.text = "TIME UP!";
-            choiceFeedbackText.text = HandName(lockedHand) + "で勝負！";
+            choiceFeedbackText.text = lastSignalWasFake
+                ? $"本命は{HandName(lockedHand)}、{HandName(shownHand)}のフェイクで勝負！"
+                : HandName(lockedHand) + "で正面勝負！";
             choiceFeedbackText.color = Yellow;
+            choiceLockedText.text = $"本命：{HandName(lockedHand)}　｜　CPUが見た手：{HandName(shownHand)}";
             sound.Play("timeup");
             yield return ScaleBounce(choiceTimerText.rectTransform, .32f);
             yield return new WaitForSecondsRealtime(.25f);
@@ -401,7 +405,7 @@ namespace Janken
         {
             busy = true;
             yield return Transition(choiceScreen, battleScreen);
-            JankenIconGraphic.Hand cpu = (JankenIconGraphic.Hand)Random.Range(0, 3);
+            JankenIconGraphic.Hand cpu = ChooseCpuHand();
             playerIcon.Value = player;
             cpuIcon.Value = cpu;
             playerIcon.canvasRenderer.SetAlpha(0f);
@@ -520,8 +524,17 @@ namespace Janken
                 resultText.color = Cyan;
                 sound.Play("draw");
             }
-            detailText.text = $"{HandName(player)} vs {HandName(cpu)}";
+            string read = cpuUsedRead ? $"CPUは最後の{HandName(shownHand)}を読んだ" : "CPUは読みを外した";
+            detailText.text = $"{HandName(player)} vs {HandName(cpu)}　｜　{read}";
             scoreText.text = $"{wins} 勝　{losses} 敗　{draws} 分";
+        }
+
+        private JankenIconGraphic.Hand ChooseCpuHand()
+        {
+            cpuUsedRead = hasShownHand && Random.value < CpuReadChance;
+            if (!cpuUsedRead) return (JankenIconGraphic.Hand)Random.Range(0, 3);
+            // 最後に見た手へ勝つ手を選ぶ。Rock(0)にはPaper(2)という並び。
+            return (JankenIconGraphic.Hand)(((int)shownHand + 2) % 3);
         }
 
         private void BackToChoice()
