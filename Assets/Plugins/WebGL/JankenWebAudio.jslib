@@ -94,7 +94,7 @@ mergeInto(LibraryManager.library, {
         JankenAudio.tone(ctx, master, now, 0.65, 'triangle', 245, 185, 0.42);
         JankenAudio.tone(ctx, master, now + 0.08, 0.55, 'sine', 310, 235, 0.24);
       } else if (soundId === 7) {
-        // 実選択とフェイクで共通使用する、情報を漏らさないクリック音。
+        // どの手でも共通使用する短いクリック音。
         JankenAudio.tone(ctx, master, now, 0.14, 'square', 720, 980, 0.26);
         JankenAudio.tone(ctx, master, now, 0.12, 'sine', 1080, 1320, 0.18);
         JankenAudio.noise(ctx, master, now, 0.07, 0.08);
