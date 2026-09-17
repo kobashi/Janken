@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Documentation
+
+- セッション中に登場したUnity、ゲームロジック、音声合成、WebGL、GitHub公開、ライセンスの基礎概念を解説する教材を追加
+
 ## [1.6.0] - 2026-09-15
 
 ### Added
